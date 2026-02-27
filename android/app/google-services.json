@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "668061607763",
+    "project_id": "tap-and-match-98f4a",
+    "storage_bucket": "tap-and-match-98f4a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:668061607763:android:59cdb7cc6682c5e723a3a6",
+        "android_client_info": {
+          "package_name": "com.example.tap_n_match"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQliX5f5V9hDyW2Mw0DrNxdh2MRcTae8E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
