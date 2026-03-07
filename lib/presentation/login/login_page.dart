@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http; // 1. Added HTTP import
+import 'dart:convert'; // Needed for jsonEncode
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -11,6 +13,9 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
+  
+  // 2. Added a loading variable
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -26,10 +31,49 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  // 3. THE HTTP LOGIN FUNCTION
+  Future<void> _loginUser() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // NOTE: Use 'http://10.0.2.2:8000/login' if using Android Emulator
+      // Use 'http://127.0.0.1:8000/login' if using Chrome/Web
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:8000/login'), 
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "username": _emailController.text,
+          "password": _passwordController.text,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        // Success! Go to menu
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/menu');
+        }
+      } else {
+        // Show error message if login fails
+        final errorData = jsonDecode(response.body);
+        _showError(errorData['detail'] ?? 'Login Failed');
+      }
+    } catch (e) {
+      _showError("Can't connect to server. Is FastAPI running?");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message, style: GoogleFonts.pixelifySans())),
+    );
+  }
+
+  // --- Your UI Methods ---
   Widget _buildOutlinedTitle(String text) {
     return Stack(
       children: [
-        // The Black Outline
         Text(
           text,
           style: GoogleFonts.pixelifySans(
@@ -41,7 +85,6 @@ class _LoginPageState extends State<LoginPage> {
               ..color = Colors.black,
           ),
         ),
-        // The White Fill
         Text(
           text,
           style: GoogleFonts.pixelifySans(
@@ -82,10 +125,7 @@ class _LoginPageState extends State<LoginPage> {
           gradient: RadialGradient(
             center: Alignment.center,
             radius: 1.2,
-            colors: [
-              Color(0xFFD8B4F8),
-              Color(0xFF7B1FA2),
-            ],
+            colors: [Color(0xFFD8B4F8), Color(0xFF7B1FA2)],
           ),
         ),
         child: Center(
@@ -110,29 +150,38 @@ class _LoginPageState extends State<LoginPage> {
                     child: _buildOutlinedTitle('Login to Continue'),
                   ),
                   const SizedBox(height: 30),
-                  // USERNAME FIELD
                   TextField(
                     controller: _emailController,
                     textAlign: TextAlign.center,
                     style: GoogleFonts.pixelifySans(fontSize: 18),
                     decoration: _pixelInput('Username'),
-                    textInputAction: TextInputAction.next, // Moves focus to next field
+                    textInputAction: TextInputAction.next,
                   ),
                   const SizedBox(height: 15),
-                  // PASSWORD FIELD
                   TextField(
                     controller: _passwordController,
                     obscureText: true,
                     textAlign: TextAlign.center,
                     style: GoogleFonts.pixelifySans(fontSize: 18),
                     decoration: _pixelInput('Password'),
-                    textInputAction: TextInputAction.done, // Shows "Done" or "Enter"
-                    onSubmitted: (value) {
-                      // Triggers navigation when Enter/Done is pressed
-                      Navigator.of(context).pushReplacementNamed('/menu');
-                    },
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (value) => _loginUser(), // Trigger login on enter
                   ),
                   const SizedBox(height: 25),
+                  
+                  // Login Button with Loading Spinner
+                  _isLoading 
+                    ? const CircularProgressIndicator(color: Colors.black)
+                    : ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                        ),
+                        onPressed: _loginUser, 
+                        child: Text("LOGIN", style: GoogleFonts.pixelifySans(color: Colors.white)),
+                      ),
+                      
+                  const SizedBox(height: 20),
                   GestureDetector(
                     onTap: () => Navigator.of(context).pushNamed('/register'),
                     child: Text(

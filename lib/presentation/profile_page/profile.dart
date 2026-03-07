@@ -4,11 +4,13 @@ import 'package:google_fonts/google_fonts.dart';
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
-  // --- UPDATED: STAT BOX WITH STROKED NUMBERS ---
+  // --- STAT BOX: PREPARED FOR DYNAMIC DATA ---
   Widget _buildStatBox(String value, String label) {
+    final displayValue = value.isEmpty ? "-" : value;
+
     return Container(
       width: 140,
-      height: 70,
+      height: 75,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -17,14 +19,12 @@ class ProfilePage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Stack used to create the stroke effect on numbers
           Stack(
             children: [
-              // The Black Stroke
               Text(
-                value,
+                displayValue,
                 style: GoogleFonts.pixelifySans(
-                  fontSize: 22,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   foreground: Paint()
                     ..style = PaintingStyle.stroke
@@ -32,11 +32,10 @@ class ProfilePage extends StatelessWidget {
                     ..color = Colors.black,
                 ),
               ),
-              // The Orange Fill
               Text(
-                value,
+                displayValue,
                 style: GoogleFonts.pixelifySans(
-                  fontSize: 22,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: const Color(0xFFFCA016),
                 ),
@@ -46,9 +45,9 @@ class ProfilePage extends StatelessWidget {
           Text(
             label,
             style: GoogleFonts.pixelifySans(
-              fontSize: 14,
+              fontSize: 13,
               color: Colors.black,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -58,6 +57,10 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double screenHeight = MediaQuery.of(context).size.height;
+    final bool isLandscape = screenWidth > screenHeight;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -71,7 +74,7 @@ class ProfilePage extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // BACK BUTTON
+            // 1. BACK BUTTON
             Positioned(
               left: 20,
               top: 20,
@@ -84,39 +87,47 @@ class ProfilePage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.black, width: 2),
                   ),
-                  child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 25),
+                  child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 22),
                 ),
               ),
             ),
 
-            // LOGOUT BUTTON
+            // 2. LOGOUT - Wrapped to ensure it stays on top and visible
             Positioned(
               right: 20,
-              top: 20,
+              top: 25,
               child: GestureDetector(
                 onTap: () => Navigator.of(context).pushReplacementNamed('/login'),
-                child: Row(
-                  children: [
-                    const Icon(Icons.logout, color: Colors.black),
-                    const SizedBox(width: 5),
-                    Text(
-                      'Logout',
-                      style: GoogleFonts.pixelifySans(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2), // Subtle background to prevent text overlap confusion
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.logout, color: Colors.black, size: 20),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Logout',
+                        style: GoogleFonts.pixelifySans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
 
-            // STATISTICS PANEL
+            // 3. MAIN PANEL - Adjusted width for landscape to prevent Logout overlap
             Center(
               child: Container(
-                width: MediaQuery.of(context).size.width * 0.85,
-                height: MediaQuery.of(context).size.height * 0.8,
+                width: isLandscape ? screenWidth * 0.75 : screenWidth * 0.85, 
+                height: isLandscape ? screenHeight * 0.8 : 500,
                 decoration: BoxDecoration(
                   color: const Color(0xFFE59A5A),
                   borderRadius: BorderRadius.circular(25),
@@ -124,10 +135,9 @@ class ProfilePage extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    // Header
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: const BoxDecoration(
                         color: Color(0xFFC08E66),
                         borderRadius: BorderRadius.only(
@@ -140,34 +150,31 @@ class ProfilePage extends StatelessWidget {
                         'Statistics',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.pixelifySans(
-                          fontSize: 36,
+                          fontSize: 32,
                           fontWeight: FontWeight.bold,
                           fontStyle: FontStyle.italic,
                           color: Colors.white,
-                          shadows: [
-                            const Shadow(offset: Offset(2, 2), color: Colors.black),
-                          ],
+                          shadows: [const Shadow(offset: Offset(2, 2), color: Colors.black)],
                         ),
                       ),
                     ),
-                    
-                    // Stats Grid
                     Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        child: Wrap(
-                          spacing: 20,
-                          runSpacing: 20,
-                          alignment: WrapAlignment.center,
-                          runAlignment: WrapAlignment.center,
-                          children: [
-                            _buildStatBox('', 'Highest Score'),
-                            _buildStatBox('', 'Games Played'),
-                            _buildStatBox('', 'Boxes Tapped'),
-                            _buildStatBox('', 'Achievements'),
-                            _buildStatBox('', 'Highest Level'),
-                            _buildStatBox('', 'Leaderboards'),
-                          ],
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+                          child: Wrap(
+                            spacing: 15,
+                            runSpacing: 15,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              _buildStatBox('', 'Highest Score'),
+                              _buildStatBox('', 'Games Played'),
+                              _buildStatBox('', 'Boxes Tapped'),
+                              _buildStatBox('', 'Achievements'),
+                              _buildStatBox('', 'Highest Level'),
+                              _buildStatBox('', 'Leaderboards'),
+                            ],
+                          ),
                         ),
                       ),
                     ),
