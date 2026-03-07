@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../../core/routes.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -12,6 +15,10 @@ class _RegisterPageState extends State<RegisterPage> {
   late TextEditingController _usernameController;
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
+  late TextEditingController _codeController;
+
+  bool _isLoading = false;
+  bool _isSendingCode = false;
 
   @override
   void initState() {
@@ -19,6 +26,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _usernameController = TextEditingController();
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
+    _codeController = TextEditingController();
   }
 
   @override
@@ -26,46 +34,91 @@ class _RegisterPageState extends State<RegisterPage> {
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
-  // Helper for the White Outlined Titles
-  Widget _buildOutlinedTitle(String text) {
-    return Stack(
-      children: [
-        Text(
-          text,
-          style: GoogleFonts.pixelifySans(
-            fontSize: 40,
-            fontWeight: FontWeight.bold,
-            foreground: Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 5.0
-              ..color = Colors.black,
-          ),
-        ),
-        Text(
-          text,
-          style: GoogleFonts.pixelifySans(
-            fontSize: 40,
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
+  // --- BACKEND LOGIC ---
+  Future<void> _sendCode() async {
+    if (_emailController.text.isEmpty || !_emailController.text.contains('@')) {
+      _showMsg("Please enter a valid Gmail address", isError: true);
+      return;
+    }
+    setState(() => _isSendingCode = true);
+    try {
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:8000/send-code'), // 127.0.0.1 for Chrome
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"email": _emailController.text}),
+      );
+      if (response.statusCode == 200) {
+        _showMsg("Code sent to Gmail!", isError: false);
+      } else {
+        _showMsg("Failed to send code.", isError: true);
+      }
+    } catch (e) {
+      _showMsg("Server Offline - Check VS Code Terminal", isError: true);
+    } finally {
+      setState(() => _isSendingCode = false);
+    }
+  }
+
+  Future<void> _handleRegister() async {
+    if (_usernameController.text.isEmpty ||
+        _passwordController.text.isEmpty ||
+        _codeController.text.isEmpty) {
+      _showMsg("Fill in all fields", isError: true);
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:8000/register'), // 127.0.0.1 for Chrome
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "username": _usernameController.text,
+          "email": _emailController.text,
+          "password": _passwordController.text,
+          "code": _codeController.text,
+        }),
+      );
+      if (response.statusCode == 200) {
+        _showMsg("Account Verified! Going to Login...", isError: false);
+        if (mounted) Navigator.of(context).pop();
+      } else {
+        final error = jsonDecode(response.body);
+        _showMsg(error['detail'] ?? "Error creating account", isError: true);
+      }
+    } catch (e) {
+      _showMsg("Server Error", isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showMsg(String msg, {required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: GoogleFonts.pixelifySans()),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
-  // Helper for consistent Pixel-style TextFields
+  // --- UI HELPERS ---
   InputDecoration _pixelInput(String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: GoogleFonts.pixelifySans(color: Colors.grey.shade600, fontSize: 18),
+      hintStyle: GoogleFonts.pixelifySans(
+        color: Colors.grey.shade600,
+        fontSize: 13,
+      ),
       filled: true,
       fillColor: const Color(0xFFD9D9D9),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       enabledBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Colors.black, width: 3),
+        borderSide: const BorderSide(color: Colors.black, width: 2),
         borderRadius: BorderRadius.circular(8),
       ),
       focusedBorder: OutlineInputBorder(
@@ -78,135 +131,149 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Container(
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
-          // Radial Gradient background: Light to Dark Purple
           gradient: RadialGradient(
             center: Alignment.center,
             radius: 1.2,
-            colors: [
-              Color(0xFFD8B4F8), // Light Purple
-              Color(0xFF7B1FA2), // Dark Purple
-            ],
+            colors: [Color(0xFFD8B4F8), Color(0xFF7B1FA2)],
           ),
         ),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 480),
-              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 35),
-              decoration: BoxDecoration(
-                // Blue box gradient
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFFAED9E0), Color(0xFF89AFCF)],
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 420),
+                padding: const EdgeInsets.fromLTRB(20, 15, 20, 10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFFAED9E0), Color(0xFF89AFCF)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.black, width: 3),
                 ),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.black, width: 4),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Title on the side
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _buildOutlinedTitle('Create New Account'),
-                  ),
-                  const SizedBox(height: 25),
-
-                  // Gmail Field + Send Code Button Row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _emailController,
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.pixelifySans(),
-                          decoration: _pixelInput('Gmail'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      GestureDetector(
-                        onTap: () {
-                          // TODO: Implement Firebase Auth Send Code
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            // Blue gradient for the button
-                            gradient: const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Color(0xFF64B5F6), Color(0xFF1976D2)],
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.black, width: 2.5),
-                          ),
-                          child: Stack(
-                            children: [
-                              // Text Outline
-                              Text(
-                                'Send Code',
-                                style: GoogleFonts.pixelifySans(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  foreground: Paint()
-                                    ..style = PaintingStyle.stroke
-                                    ..strokeWidth = 2.5
-                                    ..color = Colors.black,
-                                ),
-                              ),
-                              // Text Fill
-                              Text(
-                                'Send Code',
-                                style: GoogleFonts.pixelifySans(
-                                  fontSize: 13,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Username Field
-                  TextField(
-                    controller: _usernameController,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.pixelifySans(),
-                    decoration: _pixelInput('Username'),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Password Field
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.pixelifySans(),
-                    decoration: _pixelInput('Password'),
-                  ),
-                  const SizedBox(height: 25),
-
-                  // Footer Link
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Text(
-                      "Already Have An Account?",
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Create Account',
                       style: GoogleFonts.pixelifySans(
-                        fontSize: 18,
-                        color: Colors.black87,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+
+                    // Gmail + Send Button Row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _emailController,
+                            decoration: _pixelInput('Gmail'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: _isSendingCode ? null : _sendCode,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _isSendingCode
+                                  ? Colors.grey
+                                  : const Color(0xFF4A90E2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.black, width: 2),
+                            ),
+                            child: Text(
+                              _isSendingCode ? '...' : 'Send',
+                              style: GoogleFonts.pixelifySans(
+                                color: Colors.white,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Verification Code
+                    TextField(
+                      controller: _codeController,
+                      textAlign: TextAlign.center,
+                      decoration: _pixelInput('Enter 6-digit Code'),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Side-by-Side Username and Password
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _usernameController,
+                            decoration: _pixelInput('Username'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _passwordController,
+                            obscureText: true,
+                            decoration: _pixelInput('Password'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 15),
+
+                    _isLoading
+                        ? const CircularProgressIndicator(color: Colors.black)
+                        : SizedBox(
+                            width: 180,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              onPressed: _handleRegister,
+                              child: Text(
+                                'VERIFY & SIGN UP',
+                                style: GoogleFonts.pixelifySans(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                    const SizedBox(height: 5),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        "Already have an account?",
+                        style: GoogleFonts.pixelifySans(
+                          color: Colors.black,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

@@ -1,11 +1,14 @@
+import 'dart:io'; // Required for exit(0)
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Required for SystemNavigator.pop()
 import 'package:google_fonts/google_fonts.dart';
 
 class MainMenuPage extends StatelessWidget {
   const MainMenuPage({super.key});
 
-  // --- 3x3 GRID LOGO ---
-  Widget _buildLogoGrid() {
+  // --- RESPONSIVE GRID LOGO ---
+  Widget _buildLogoGrid(double screenHeight) {
+    final double gridSize = screenHeight * 0.35;
     final List<Color> gridColors = [
       Colors.red, Colors.blue, Colors.greenAccent,
       Colors.yellow, Colors.white, Colors.yellow,
@@ -13,22 +16,22 @@ class MainMenuPage extends StatelessWidget {
     ];
 
     return SizedBox(
-      width: 160, 
-      height: 160,
+      width: gridSize.clamp(100.0, 160.0),
+      height: gridSize.clamp(100.0, 160.0),
       child: GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
+          mainAxisSpacing: 6,
+          crossAxisSpacing: 6,
         ),
         itemCount: 9,
         itemBuilder: (context, index) {
           return Container(
             decoration: BoxDecoration(
               color: gridColors[index],
-              border: Border.all(color: Colors.black, width: 3),
-              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.black, width: 2),
+              borderRadius: BorderRadius.circular(8),
             ),
           );
         },
@@ -36,19 +39,20 @@ class MainMenuPage extends StatelessWidget {
     );
   }
 
-  // --- STYLIZED MENU BUTTONS ---
+  // --- STYLIZED MENU BUTTON ---
   Widget _buildMenuButton({
     required String text,
     required Color color,
     required IconData icon,
     required VoidCallback onTap,
+    required bool isLandscape,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 180,
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        margin: EdgeInsets.symmetric(vertical: isLandscape ? 4 : 8),
+        padding: EdgeInsets.symmetric(vertical: isLandscape ? 8 : 12, horizontal: 16),
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(12),
@@ -57,12 +61,12 @@ class MainMenuPage extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.black, size: 28),
+            Icon(icon, color: Colors.black, size: 24),
             const SizedBox(width: 10),
             Text(
               text,
               style: GoogleFonts.pixelifySans(
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
               ),
@@ -74,18 +78,47 @@ class MainMenuPage extends StatelessWidget {
   }
 
   // --- SIDEBAR ICON HELPER ---
-  Widget _buildSidebarIcon(BuildContext context, IconData icon, String routeName) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: GestureDetector(
-        onTap: () => Navigator.of(context).pushNamed(routeName), // Using direct string
-        child: Icon(icon, color: Colors.black, size: 40),
+  Widget _buildSidebarIcon(BuildContext context, IconData icon, String route, bool isLandscape) {
+    final double size = isLandscape ? 35 : 44;
+    
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pushNamed(route),
+      child: Stack(
+        children: [
+          Icon(
+            icon,
+            size: size + 2,
+            color: Colors.black,
+          ),
+          Positioned(
+            left: 1,
+            top: 1,
+            child: ShaderMask(
+              shaderCallback: (Rect bounds) {
+                return const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color.fromARGB(255, 239, 140, 47), Color(0xFFB0B0B0)],
+                ).createShader(bounds);
+              },
+              child: Icon(
+                icon,
+                color: Colors.white,
+                size: size,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final double screenHeight = MediaQuery.of(context).size.height;
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final bool isLandscape = screenWidth > screenHeight;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -102,36 +135,39 @@ class MainMenuPage extends StatelessWidget {
             // 1. SIDEBAR ICONS
             Positioned(
               left: 20,
-              top: 20,
+              top: 25,
               child: Column(
                 children: [
-                  _buildSidebarIcon(context, Icons.account_circle, '/profile'),
-                  _buildSidebarIcon(context, Icons.emoji_events, '/achievements'),
-                  _buildSidebarIcon(context, Icons.leaderboard, '/leaderboards'),
-                  _buildSidebarIcon(context, Icons.palette, '/theme'),
+                  _buildSidebarIcon(context, Icons.account_circle, '/profile', isLandscape),
+                  const SizedBox(height: 15),
+                  _buildSidebarIcon(context, Icons.emoji_events, '/achievements', isLandscape),
+                  const SizedBox(height: 15),
+                  _buildSidebarIcon(context, Icons.leaderboard, '/leaderboards', isLandscape),
+                  const SizedBox(height: 15),
+                  _buildSidebarIcon(context, Icons.palette, '/theme', isLandscape),
                 ],
               ),
             ),
 
-            // 2. DAILY CHALLENGE PANEL
+            // 2. DAILY CHALLENGE PANEL (WITH PLAY NOW BUTTON)
             Positioned(
               right: 20,
               top: 0,
               bottom: 0,
               child: Center(
                 child: Container(
-                  width: 170,
-                  height: 220,
+                  width: isLandscape ? 140 : 170,
+                  height: isLandscape ? 200 : 250, 
                   decoration: BoxDecoration(
                     color: const Color(0xFF98EE99),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.black, width: 4),
+                    border: Border.all(color: Colors.black, width: 3),
                   ),
                   child: Column(
                     children: [
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         decoration: const BoxDecoration(
                           color: Color(0xFFC6D8FF),
                           borderRadius: BorderRadius.only(
@@ -144,20 +180,48 @@ class MainMenuPage extends StatelessWidget {
                           'Daily Challenge',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.pixelifySans(
-                              fontWeight: FontWeight.bold, fontSize: 14),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      Text('Reward:', style: GoogleFonts.pixelifySans()),
-                      const SizedBox(height: 10),
+                      const Spacer(),
+                      Text('Reward:', style: GoogleFonts.pixelifySans(fontSize: 12)),
+                      const SizedBox(height: 5),
                       Container(
-                        width: 60,
-                        height: 60,
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
                           color: Colors.black,
                           borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white, width: 1),
+                        ),
+                        // Palette icon represents a background color reward
+                        child: const Icon(Icons.palette, color: Colors.cyanAccent, size: 24),
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      // --- PLAY NOW BUTTON ---
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).pushNamed('/game'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.black, width: 2),
+                          ),
+                          child: Text(
+                            'Play Now',
+                            style: GoogleFonts.pixelifySans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
                         ),
                       ),
+                      const Spacer(),
                     ],
                   ),
                 ),
@@ -166,77 +230,70 @@ class MainMenuPage extends StatelessWidget {
 
             // 3. MAIN CENTER CONTENT
             Align(
-              alignment: const Alignment(0, -0.2),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildLogoGrid(),
-                  const SizedBox(height: 15),
-                  Stack(
-                    children: [
-                      Text(
-                        'Tap & Match',
-                        style: GoogleFonts.pixelifySans(
-                          fontSize: 55,
-                          fontWeight: FontWeight.bold,
-                          foreground: Paint()
-                            ..style = PaintingStyle.stroke
-                            ..strokeWidth = 6
-                            ..color = Colors.black,
-                        ),
-                      ),
-                      Text(
-                        'Tap & Match',
-                        style: GoogleFonts.pixelifySans(
-                          fontSize: 55,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFFFCA016),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Stack(
-                    children: [
-                      Text(
-                        'The Color Game',
-                        style: GoogleFonts.pixelifySans(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          foreground: Paint()
-                            ..style = PaintingStyle.stroke
-                            ..strokeWidth = 4
-                            ..color = Colors.black,
-                        ),
-                      ),
-                      Text(
-                        'The Color Game',
-                        style: GoogleFonts.pixelifySans(
-                          fontSize: 22,
-                          color: const Color(0xFF20DEFF),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 25),
-                  _buildMenuButton(
-                    text: 'Play',
-                    icon: Icons.play_arrow,
-                    color: const Color(0xFFAEC6FF),
-                    onTap: () => Navigator.of(context).pushNamed('/game'),
-                  ),
-                  _buildMenuButton(
-                    text: 'Exit',
-                    icon: Icons.close,
-                    color: const Color(0xFFFF7E7E),
-                    onTap: () => Navigator.of(context).pushReplacementNamed('/login'),
-                  ),
-                ],
+              alignment: Alignment.center,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildLogoGrid(screenHeight),
+                    SizedBox(height: isLandscape ? 8 : 15),
+                    _buildTitleText('Tap & Match', isLandscape ? 40 : 55, const Color(0xFFFCA016)),
+                    _buildTitleText('The Color Game', isLandscape ? 16 : 22, const Color(0xFF20DEFF)),
+                    SizedBox(height: isLandscape ? 8 : 25),
+                    _buildMenuButton(
+                      text: 'Play',
+                      icon: Icons.play_arrow,
+                      color: const Color(0xFFAEC6FF),
+                      isLandscape: isLandscape,
+                      onTap: () => Navigator.of(context).pushNamed('/game'),
+                    ),
+                    _buildMenuButton(
+                      text: 'Exit',
+                      icon: Icons.close,
+                      color: const Color(0xFFFF7E7E),
+                      isLandscape: isLandscape,
+                      onTap: () {
+                        // Using your specific platform-check logic
+                        if (Platform.isAndroid) {
+                          SystemNavigator.pop();
+                        } else if (Platform.isIOS) {
+                          exit(0);
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTitleText(String text, double size, Color color) {
+    return Stack(
+      children: [
+        Text(
+          text,
+          style: GoogleFonts.pixelifySans(
+            fontSize: size,
+            fontWeight: FontWeight.bold,
+            foreground: Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 4
+              ..color = Colors.black,
+          ),
+        ),
+        Text(
+          text,
+          style: GoogleFonts.pixelifySans(
+            fontSize: size,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 }
