@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
-  // --- UPDATED: STAT BOX WITH STROKED NUMBERS ---
+  // Helper to build the white stat boxes with strokes in each 0
   Widget _buildStatBox(String value, String label) {
     return Container(
       width: 140,
@@ -17,10 +17,10 @@ class ProfilePage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Stack used to create the stroke effect on numbers
+          // Stack used to create the stroke effect on the number
           Stack(
             children: [
-              // The Black Stroke
+              // The Black Stroke (Background)
               Text(
                 value,
                 style: GoogleFonts.pixelifySans(
@@ -32,7 +32,7 @@ class ProfilePage extends StatelessWidget {
                     ..color = Colors.black,
                 ),
               ),
-              // The Orange Fill
+              // The Gold/Orange Fill (Foreground)
               Text(
                 value,
                 style: GoogleFonts.pixelifySans(
@@ -48,7 +48,6 @@ class ProfilePage extends StatelessWidget {
             style: GoogleFonts.pixelifySans(
               fontSize: 14,
               color: Colors.black,
-              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -71,7 +70,7 @@ class ProfilePage extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // BACK BUTTON
+            // 1. BACK BUTTON
             Positioned(
               left: 20,
               top: 20,
@@ -84,12 +83,12 @@ class ProfilePage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.black, width: 2),
                   ),
-                  child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 25),
+                  child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 30),
                 ),
               ),
             ),
 
-            // LOGOUT BUTTON
+            // 2. LOGOUT BUTTON
             Positioned(
               right: 20,
               top: 20,
@@ -112,24 +111,24 @@ class ProfilePage extends StatelessWidget {
               ),
             ),
 
-            // STATISTICS PANEL
+            // 3. STATISTICS MAIN PANEL
             Center(
               child: Container(
-                width: MediaQuery.of(context).size.width * 0.85,
-                height: MediaQuery.of(context).size.height * 0.8,
+                width: MediaQuery.of(context).size.width * 0.8,
+                height: MediaQuery.of(context).size.height * 0.75,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE59A5A),
+                  color: const Color(0xFFE59A5A), 
                   borderRadius: BorderRadius.circular(25),
                   border: Border.all(color: Colors.black, width: 3),
                 ),
                 child: Column(
                   children: [
-                    // Header
+                    // Header Section
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: const BoxDecoration(
-                        color: Color(0xFFC08E66),
+                        color: Color(0xFFC08E66), 
                         borderRadius: BorderRadius.only(
                           topLeft: Radius.circular(22),
                           topRight: Radius.circular(22),
@@ -140,7 +139,7 @@ class ProfilePage extends StatelessWidget {
                         'Statistics',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.pixelifySans(
-                          fontSize: 36,
+                          fontSize: 40,
                           fontWeight: FontWeight.bold,
                           fontStyle: FontStyle.italic,
                           color: Colors.white,
@@ -151,7 +150,7 @@ class ProfilePage extends StatelessWidget {
                       ),
                     ),
                     
-                    // Stats Grid
+                    // Stats Grid Section
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 20),
@@ -161,12 +160,12 @@ class ProfilePage extends StatelessWidget {
                           alignment: WrapAlignment.center,
                           runAlignment: WrapAlignment.center,
                           children: [
-                            _buildStatBox('', 'Highest Score'),
-                            _buildStatBox('', 'Games Played'),
-                            _buildStatBox('', 'Boxes Tapped'),
-                            _buildStatBox('', 'Achievements'),
-                            _buildStatBox('', 'Highest Level'),
-                            _buildStatBox('', 'Leaderboards'),
+                            _buildStatBox('0', 'Highest Score'),
+                            _buildStatBox('0', 'Games Played'),
+                            _buildStatBox('0', 'Boxes Tapped'),
+                            _buildStatBox('0', 'Achievements'),
+                            _buildStatBox('0', 'Highest Level'),
+                            _buildStatBox('0', 'Leaderboards'),
                           ],
                         ),
                       ),
