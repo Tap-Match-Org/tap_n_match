@@ -1,7 +1,8 @@
-import 'dart:io'; // Required for exit(0)
+import 'dart:io'; 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Required for SystemNavigator.pop()
+import 'package:flutter/services.dart'; 
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tap_n_match/core/routes.dart'; // Ensure this import matches your project structure
 
 class MainMenuPage extends StatelessWidget {
   const MainMenuPage({super.key});
@@ -113,6 +114,81 @@ class MainMenuPage extends StatelessWidget {
     );
   }
 
+  // --- NEW: DIALOG BUTTON HELPER ---
+  Widget _buildDialogButton(String text, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.black, width: 2),
+        ),
+        child: Text(
+          text,
+          style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold, color: Colors.black),
+        ),
+      ),
+    );
+  }
+
+  // --- NEW: SHOW CHALLENGE CONFIRMATION ---
+  void _showChallengeConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, 
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: 320,
+            height: 220,
+            decoration: BoxDecoration(
+              color: const Color(0xFFB2B9D1), 
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.black, width: 3),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "You only get 1 chance",
+                  style: GoogleFonts.pixelifySans(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  "Continue to Challenge?",
+                  style: GoogleFonts.pixelifySans(
+                    fontSize: 18,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 25),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildDialogButton("Yes", () {
+                      Navigator.pop(context); // Close dialog
+                      Navigator.pushNamed(context, AppRoutes.dailyChallenge);
+                    }),
+                    _buildDialogButton("No", () {
+                      Navigator.pop(context); // Close dialog
+                    }),
+                  ],
+                )
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final double screenHeight = MediaQuery.of(context).size.height;
@@ -138,18 +214,18 @@ class MainMenuPage extends StatelessWidget {
               top: 25,
               child: Column(
                 children: [
-                  _buildSidebarIcon(context, Icons.account_circle, '/profile', isLandscape),
+                  _buildSidebarIcon(context, Icons.account_circle, AppRoutes.profile, isLandscape),
                   const SizedBox(height: 15),
-                  _buildSidebarIcon(context, Icons.emoji_events, '/achievements', isLandscape),
+                  _buildSidebarIcon(context, Icons.emoji_events, AppRoutes.achievements, isLandscape),
                   const SizedBox(height: 15),
-                  _buildSidebarIcon(context, Icons.leaderboard, '/leaderboards', isLandscape),
+                  _buildSidebarIcon(context, Icons.leaderboard, AppRoutes.leaderboards, isLandscape),
                   const SizedBox(height: 15),
-                  _buildSidebarIcon(context, Icons.palette, '/theme', isLandscape),
+                  _buildSidebarIcon(context, Icons.palette, AppRoutes.theme, isLandscape),
                 ],
               ),
             ),
 
-            // 2. DAILY CHALLENGE PANEL (WITH PLAY NOW BUTTON)
+            // 2. DAILY CHALLENGE PANEL
             Positioned(
               right: 20,
               top: 0,
@@ -196,14 +272,13 @@ class MainMenuPage extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.white, width: 1),
                         ),
-                        // Palette icon represents a background color reward
                         child: const Icon(Icons.palette, color: Colors.cyanAccent, size: 24),
                       ),
                       const SizedBox(height: 12),
                       
-                      // --- PLAY NOW BUTTON ---
+                      // --- UPDATED PLAY NOW BUTTON ---
                       GestureDetector(
-                        onTap: () => Navigator.of(context).pushNamed('/game'),
+                        onTap: () => _showChallengeConfirmation(context),
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                           decoration: BoxDecoration(
@@ -245,7 +320,7 @@ class MainMenuPage extends StatelessWidget {
                       icon: Icons.play_arrow,
                       color: const Color(0xFFAEC6FF),
                       isLandscape: isLandscape,
-                      onTap: () => Navigator.of(context).pushNamed('/game'),
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.game),
                     ),
                     _buildMenuButton(
                       text: 'Exit',
@@ -253,7 +328,6 @@ class MainMenuPage extends StatelessWidget {
                       color: const Color(0xFFFF7E7E),
                       isLandscape: isLandscape,
                       onTap: () {
-                        // Using your specific platform-check logic
                         if (Platform.isAndroid) {
                           SystemNavigator.pop();
                         } else if (Platform.isIOS) {

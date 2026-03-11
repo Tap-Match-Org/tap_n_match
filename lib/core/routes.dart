@@ -8,6 +8,7 @@ import '../presentation/achievement_page/achievement.dart';
 import '../presentation/leaderboards_page/leaderboards.dart';
 import '../presentation/theme_page/theme.dart';
 import '../presentation/game/main_menu.dart';
+import '../presentation/daily_challenge/daily_challenge_page.dart'; // Import the new file
 
 class AppRoutes {
   static const splash = '/';
@@ -19,6 +20,7 @@ class AppRoutes {
   static const leaderboards = '/leaderboards';
   static const theme = '/theme';
   static const game = '/game';
+  static const dailyChallenge = '/dailyChallenge'; // 1. Added constant
 
   static Map<String, WidgetBuilder> routes = {
     splash: (context) => const SplashPage(),
@@ -30,5 +32,6 @@ class AppRoutes {
     leaderboards: (context) => const LeaderboardsPage(),
     theme: (context) => const ThemePage(),
     game: (context) => const MainMenu(),
+    dailyChallenge: (context) => const DailyChallengePage(), // 2. Added route mapping
   };
 }
