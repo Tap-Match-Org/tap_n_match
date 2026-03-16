@@ -4,8 +4,56 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:tap_n_match/core/routes.dart'; // Ensure this import matches your project structure
 
-class MainMenuPage extends StatelessWidget {
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+class MainMenuPage extends StatefulWidget {
   const MainMenuPage({super.key});
+
+  @override
+  State<MainMenuPage> createState() => _MainMenuPageState();
+}
+
+class _MainMenuPageState extends State<MainMenuPage> {
+  int userId = 1; // Default fallback
+  bool isNewbie = true;
+  int userStreak = 1;
+  bool isLoading = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null && args.containsKey('user_id')) {
+      userId = args['user_id'];
+    }
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    const int userId = 1; // Assuming user 1 for now
+    try {
+      final response = await http.get(Uri.parse('http://127.0.0.1:8000/users/$userId'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // Calculate days since registration
+        String createdAtStr = data['created_at'] ?? DateTime.now().toIso8601String();
+        DateTime createdAt = DateTime.parse(createdAtStr);
+        int daysSinceReg = DateTime.now().difference(createdAt).inDays;
+        
+        setState(() {
+          isNewbie = daysSinceReg <= 7;
+          userStreak = data['streak'] ?? 1;
+          isLoading = false;
+        });
+      } else {
+        setState(() => isLoading = false);
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+    }
+  }
 
   // --- RESPONSIVE GRID LOGO ---
   Widget _buildLogoGrid(double screenHeight) {
@@ -83,7 +131,7 @@ class MainMenuPage extends StatelessWidget {
     final double size = isLandscape ? 35 : 44;
     
     return GestureDetector(
-      onTap: () => Navigator.of(context).pushNamed(route),
+      onTap: () => Navigator.of(context).pushNamed(route, arguments: {'user_id': userId}),
       child: Stack(
         children: [
           Icon(
@@ -174,7 +222,12 @@ class MainMenuPage extends StatelessWidget {
                   children: [
                     _buildDialogButton("Yes", () {
                       Navigator.pop(context); // Close dialog
-                      Navigator.pushNamed(context, AppRoutes.dailyChallenge);
+                      // Pass data to DailyChallengePage
+                      Navigator.pushNamed(
+                        context, 
+                        AppRoutes.dailyChallenge, 
+                        arguments: {'isNewbie': isNewbie, 'streak': userStreak, 'user_id': userId}
+                      );
                     }),
                     _buildDialogButton("No", () {
                       Navigator.pop(context); // Close dialog
@@ -253,7 +306,7 @@ class MainMenuPage extends StatelessWidget {
                           border: Border(bottom: BorderSide(color: Colors.black, width: 3)),
                         ),
                         child: Text(
-                          'Daily Challenge',
+                          isLoading ? 'Loading...' : (isNewbie ? 'Daily Challenge' : 'Weekly Challenge'),
                           textAlign: TextAlign.center,
                           style: GoogleFonts.pixelifySans(
                             fontWeight: FontWeight.bold,
@@ -262,7 +315,8 @@ class MainMenuPage extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-                      Text('Reward:', style: GoogleFonts.pixelifySans(fontSize: 12)),
+                      Text(isNewbie ? 'Day $userStreak Reward:' : 'Weekly Reward:', 
+                          style: GoogleFonts.pixelifySans(fontSize: 12)),
                       const SizedBox(height: 5),
                       Container(
                         width: 40,
@@ -320,7 +374,7 @@ class MainMenuPage extends StatelessWidget {
                       icon: Icons.play_arrow,
                       color: const Color(0xFFAEC6FF),
                       isLandscape: isLandscape,
-                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.game),
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.game, arguments: {'user_id': userId}),
                     ),
                     _buildMenuButton(
                       text: 'Exit',

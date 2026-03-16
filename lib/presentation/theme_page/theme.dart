@@ -11,6 +11,7 @@ class ThemePage extends StatefulWidget {
 }
 
 class _ThemePageState extends State<ThemePage> {
+  int userId = 1; // Default fallback
   List<String> unlockedColors = ["#A9A9A9"];
   bool isLoading = true;
 
@@ -19,16 +20,24 @@ class _ThemePageState extends State<ThemePage> {
     "#98EE99": "Mint",
     "#2E1A47": "Amethyst",
     "#1A3A5F": "Ocean",
+    "#FFA500": "Orange",
+    "#FFC0CB": "Pink",
+    "#00FF00": "Lime",
+    "#00FFFF": "Cyan",
+    "#FFD700": "Gold", 
   };
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null && args.containsKey('user_id')) {
+      userId = args['user_id'];
+    }
     _fetchUnlockedThemes();
   }
 
   Future<void> _fetchUnlockedThemes() async {
-    const int userId = 1; // Assuming user 1 for now
     try {
       final response = await http.get(Uri.parse('http://127.0.0.1:8000/users/$userId'));
       if (response.statusCode == 200) {

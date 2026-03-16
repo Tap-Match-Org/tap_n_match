@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -24,6 +26,53 @@ class _LoginPageState extends State<LoginPage> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final username = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (username.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter username and password')),
+      );
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:8000/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final userId = data['user_id'];
+        
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed(
+            '/menu',
+            arguments: {'user_id': userId},
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Invalid username or password')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Connection error: $e')),
+        );
+      }
+    }
   }
 
   Widget _buildOutlinedTitle(String text) {
@@ -127,10 +176,26 @@ class _LoginPageState extends State<LoginPage> {
                     style: GoogleFonts.pixelifySans(fontSize: 18),
                     decoration: _pixelInput('Password'),
                     textInputAction: TextInputAction.done, // Shows "Done" or "Enter"
-                    onSubmitted: (value) {
-                      // Triggers navigation when Enter/Done is pressed
-                      Navigator.of(context).pushReplacementNamed('/menu');
-                    },
+                    onSubmitted: (value) => _handleLogin(),
+                  ),
+                  const SizedBox(height: 15),
+                  // LOGIN BUTTON
+                  ElevatedButton(
+                    onPressed: _handleLogin,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFD8B4F8),
+                      side: const BorderSide(color: Colors.black, width: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text(
+                      'CONNECT',
+                      style: GoogleFonts.pixelifySans(
+                        fontSize: 20, 
+                        fontWeight: FontWeight.bold, 
+                        color: Colors.black
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 25),
                   GestureDetector(
