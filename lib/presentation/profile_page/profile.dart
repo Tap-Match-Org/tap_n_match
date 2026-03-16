@@ -4,7 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
-  // --- STAT BOX: PREPARED FOR DYNAMIC DATA ---
+  // Helper to build the dynamic stat boxes with strokes
+
   Widget _buildStatBox(String value, String label) {
     final displayValue = value.isEmpty ? "-" : value;
 
@@ -19,8 +20,10 @@ class ProfilePage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // Stack used to create the stroke effect on the number
           Stack(
             children: [
+              // The Black Stroke (Background)
               Text(
                 displayValue,
                 style: GoogleFonts.pixelifySans(
@@ -32,6 +35,7 @@ class ProfilePage extends StatelessWidget {
                     ..color = Colors.black,
                 ),
               ),
+              // The Gold/Orange Fill (Foreground)
               Text(
                 displayValue,
                 style: GoogleFonts.pixelifySans(
@@ -87,7 +91,7 @@ class ProfilePage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.black, width: 2),
                   ),
-                  child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 22),
+                  child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 26),
                 ),
               ),
             ),
@@ -129,17 +133,18 @@ class ProfilePage extends StatelessWidget {
                 width: isLandscape ? screenWidth * 0.75 : screenWidth * 0.85, 
                 height: isLandscape ? screenHeight * 0.8 : 500,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE59A5A),
+                  color: const Color(0xFFE59A5A), 
                   borderRadius: BorderRadius.circular(25),
                   border: Border.all(color: Colors.black, width: 3),
                 ),
                 child: Column(
                   children: [
+                    // Header Section
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: const BoxDecoration(
-                        color: Color(0xFFC08E66),
+                        color: Color(0xFFC08E66), 
                         borderRadius: BorderRadius.only(
                           topLeft: Radius.circular(22),
                           topRight: Radius.circular(22),
@@ -150,7 +155,7 @@ class ProfilePage extends StatelessWidget {
                         'Statistics',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.pixelifySans(
-                          fontSize: 32,
+                          fontSize: 40,
                           fontWeight: FontWeight.bold,
                           fontStyle: FontStyle.italic,
                           color: Colors.white,
@@ -167,12 +172,12 @@ class ProfilePage extends StatelessWidget {
                             runSpacing: 15,
                             alignment: WrapAlignment.center,
                             children: [
-                              _buildStatBox('', 'Highest Score'),
-                              _buildStatBox('', 'Games Played'),
-                              _buildStatBox('', 'Boxes Tapped'),
-                              _buildStatBox('', 'Achievements'),
-                              _buildStatBox('', 'Highest Level'),
-                              _buildStatBox('', 'Leaderboards'),
+                              _buildStatBox('0', 'Highest Score'),
+                              _buildStatBox('0', 'Games Played'),
+                              _buildStatBox('0', 'Boxes Tapped'),
+                              _buildStatBox('0', 'Achievements'),
+                              _buildStatBox('0', 'Highest Level'),
+                              _buildStatBox('0', 'Leaderboards'),
                             ],
                           ),
                         ),

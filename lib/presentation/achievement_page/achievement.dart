@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-// THIS IMPORT IS REQUIRED TO FIX THE "METHOD NOT DEFINED" ERROR
+
+// Import the list file you just created
 import 'achievement_list.dart'; 
 
 class AchievementPage extends StatelessWidget {
@@ -79,7 +80,6 @@ class AchievementPage extends StatelessWidget {
                     ),
                     
                     // THE LIST CONTENT
-                    // REMOVED 'const' HERE TO FIX THE "NOT A CONSTANT EXPRESSION" ERROR
                     const Expanded(
                       child: AchievementList(),
                     ),

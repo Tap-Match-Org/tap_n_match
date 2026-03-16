@@ -93,7 +93,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
                       child: const Text(
                         'Tap to play',
                         style: TextStyle(
-                          color: Color.fromARGB(255, 168, 166, 166),
+                          color: Color.fromARGB(255, 172, 160, 160),
                           fontSize: 14, // Slightly bigger for visibility
                           fontWeight: FontWeight.normal,
                         ),

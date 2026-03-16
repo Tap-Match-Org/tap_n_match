@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http; // 1. Added HTTP import
-import 'dart:convert'; // Needed for jsonEncode
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,7 +14,6 @@ class _LoginPageState extends State<LoginPage> {
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
   
-  // 2. Added a loading variable
   bool _isLoading = false;
 
   @override
@@ -31,31 +30,40 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // 3. THE HTTP LOGIN FUNCTION
   Future<void> _loginUser() async {
+    final username = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (username.isEmpty || password.isEmpty) {
+      _showError('Please enter username and password');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      // NOTE: Use 'http://10.0.2.2:8000/login' if using Android Emulator
-      // Use 'http://127.0.0.1:8000/login' if using Chrome/Web
       final response = await http.post(
-        Uri.parse('http://127.0.0.1:8000/login'), 
-        headers: {"Content-Type": "application/json"},
+        Uri.parse('http://127.0.0.1:8000/login'),
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          "username": _emailController.text,
-          "password": _passwordController.text,
+          'username': username,
+          'password': password,
         }),
       );
 
       if (response.statusCode == 200) {
-        // Success! Go to menu
+        final data = jsonDecode(response.body);
+        final userId = data['user_id'];
+        
         if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/menu');
+          Navigator.of(context).pushReplacementNamed(
+            '/menu',
+            arguments: {'user_id': userId},
+          );
         }
       } else {
-        // Show error message if login fails
         final errorData = jsonDecode(response.body);
-        _showError(errorData['detail'] ?? 'Login Failed');
+        _showError(errorData['detail'] ?? 'Invalid username or password');
       }
     } catch (e) {
       _showError("Can't connect to server. Is FastAPI running?");
@@ -70,7 +78,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // --- Your UI Methods ---
   Widget _buildOutlinedTitle(String text) {
     return Stack(
       children: [
@@ -165,7 +172,7 @@ class _LoginPageState extends State<LoginPage> {
                     style: GoogleFonts.pixelifySans(fontSize: 18),
                     decoration: _pixelInput('Password'),
                     textInputAction: TextInputAction.done,
-                    onSubmitted: (value) => _loginUser(), // Trigger login on enter
+                    onSubmitted: (value) => _loginUser(),
                   ),
                   const SizedBox(height: 25),
                   
@@ -174,11 +181,20 @@ class _LoginPageState extends State<LoginPage> {
                     ? const CircularProgressIndicator(color: Colors.black)
                     : ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
+                          backgroundColor: const Color(0xFFD8B4F8),
+                          side: const BorderSide(color: Colors.black, width: 3),
                           padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         onPressed: _loginUser, 
-                        child: Text("LOGIN", style: GoogleFonts.pixelifySans(color: Colors.white)),
+                        child: Text(
+                          "CONNECT", 
+                          style: GoogleFonts.pixelifySans(
+                            color: Colors.black,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold
+                          )
+                        ),
                       ),
                       
                   const SizedBox(height: 20),

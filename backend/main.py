@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import smtplib, random
 from email.message import EmailMessage
 import sqlite3
+from datetime import date
 
 app = FastAPI()
 
@@ -18,11 +19,9 @@ app.add_middleware(
 SENDER_EMAIL = "jayshangodornes@gmail.com"
 SENDER_PASSWORD = "pigp hsuz cawl rkqy"
 
-# In-memory dictionary to store verification codes
-# In a real app, use Redis or a database with expiration
 pending_codes = {}
 
-# Setup Database
+# --- Updated Database Init ---
 def init_db():
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
@@ -31,9 +30,19 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            unlocked_themes TEXT DEFAULT '#FFFFFF', 
+            streak INTEGER DEFAULT 0,
+            last_challenge_date TEXT
         )
     """)
+    
+    # Try adding the new created_at column to existing DBs safely
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN created_at TEXT DEFAULT CURRENT_DATE")
+    except sqlite3.OperationalError:
+        pass # Column already exists
+        
     conn.commit()
     conn.close()
 
@@ -59,9 +68,6 @@ class LoginRequest(BaseModel):
 async def send_code(request: EmailRequest):
     code = str(random.randint(100000, 999999))
     pending_codes[request.email] = code
-    
-    # Optional: Send the actual email
-    # If the credentials are invalid, we just print the code to the console for testing
     msg = EmailMessage()
     msg.set_content(f"Your verification code is: {code}")
     msg["Subject"] = "Tap & Match - Verification Code"
@@ -69,72 +75,118 @@ async def send_code(request: EmailRequest):
     msg["To"] = request.email
 
     try:
-        # NOTE: You probably need to set real credentials in SENDER_EMAIL and SENDER_PASSWORD
-        # to actually send the email via Gmail.
-        # Alternatively, we just print it to the console so you can test it locally.
         print(f"[DEBUG] Generated code for {request.email}: {code}")
-        
         server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.send_message(msg)
         server.quit()
     except Exception as e:
-        print("[WARNING] Could not send email due to invalid credentials or network issue.")
-        print(f"[NOTE] Please check terminal for the code: {code}")
+        print(f"[WARNING] Could not send email. Code: {code}")
 
-    return {"message": "Code sent successfully or logged to console"}
+    return {"message": "Code sent successfully"}
 
 @app.post("/register")
 async def register(request: RegisterRequest):
-    # Verify the code
     if request.email not in pending_codes or pending_codes[request.email] != request.code:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Invalid or expired verification code."
-        )
+        raise HTTPException(status_code=400, detail="Invalid code.")
 
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
-
+    today = date.today().isoformat()
     try:
-        # Check if username or email already exists
-        cursor.execute("SELECT * FROM users WHERE username = ? OR email = ?", (request.username, request.email))
-        if cursor.fetchone():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="Username or email already exists."
-            )
-
-        # Insert new user
-        cursor.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
-                       (request.username, request.email, request.password))
+        cursor.execute("INSERT INTO users (username, email, password, created_at) VALUES (?, ?, ?, ?)",
+                       (request.username, request.email, request.password, today))
         conn.commit()
-    except sqlite3.Error as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="Username or email exists.")
     finally:
         conn.close()
 
-    # Clear code
     del pending_codes[request.email]
-
     return {"message": "User registered successfully."}
 
 @app.post("/login")
 async def login(request: LoginRequest):
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (request.username, request.password))
+    cursor.execute("SELECT id, username FROM users WHERE username = ? AND password = ?", 
+                   (request.username, request.password))
     user = cursor.fetchone()
     conn.close()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Invalid username or password"
-        )
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    return {"message": "Login successful"}
+    # In a real app, return a token. For now, we return user info.
+    return {"message": "Login successful", "user_id": user[0], "username": user[1]}
+
+# --- NEW: Get User Info for Theme/Streak Logic ---
+@app.get("/fix1")
+async def fix1():
+    import sqlite3
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO users (id, username, email, password, created_at) VALUES (1, 'demo', 'demo@demo.com', 'pass', '2023-01-01')")
+    conn.commit()
+    conn.close()
+    return {"status": "fixed"}
+
+@app.get("/users/{user_id}")
+async def get_user_info(user_id: int):
+    conn = sqlite3.connect("users.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    user = cursor.execute(
+        "SELECT unlocked_themes, streak, last_challenge_date, created_at FROM users WHERE id = ?", 
+        (user_id,)
+    ).fetchone()
+    conn.close()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return dict(user)
+
+# --- NEW: Daily Challenge Reward Logic ---
+@app.put("/complete-challenge/{user_id}")
+async def complete_challenge(user_id: int, reward_color: str):
+    conn = sqlite3.connect("users.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+
+    today = date.today().isoformat()
+    
+    # Check if already played today
+    if user['last_challenge_date'] == today:
+        conn.close()
+        return {"status": "already_played", "message": "Reward already claimed today!"}
+
+    # Calculate Streak
+    current_streak = user['streak']
+    new_streak = current_streak + 1 if current_streak < 7 else 1
+    
+    # Add new color to unlocked_themes list (comma separated)
+    themes = user['unlocked_themes'] or ""
+    if reward_color not in themes:
+        themes = f"{themes},{reward_color}".strip(",")
+
+    cursor.execute("""
+        UPDATE users 
+        SET streak = ?, last_challenge_date = ?, unlocked_themes = ? 
+        WHERE id = ?
+    """, (new_streak, today, themes, user_id))
+    
+    conn.commit()
+    conn.close()
+    
+    return {
+        "status": "success", 
+        "new_streak": new_streak, 
+        "unlocked_color": reward_color
+    }

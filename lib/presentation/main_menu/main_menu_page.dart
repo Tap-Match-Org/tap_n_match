@@ -1,14 +1,15 @@
-import 'dart:io'; // Required for exit(0)
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Required for SystemNavigator.pop()
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tap_n_match/core/routes.dart'; // Ensure this import matches your project structure
 
-class MainMenuPage extends StatelessWidget {
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+class MainMenuPage extends StatefulWidget {
   const MainMenuPage({super.key});
 
-  // --- RESPONSIVE GRID LOGO ---
-  Widget _buildLogoGrid(double screenHeight) {
-    final double gridSize = screenHeight * 0.35;
+  // --- 3x3 GRID LOGO ---
+  Widget _buildLogoGrid() {
     final List<Color> gridColors = [
       Colors.red, Colors.blue, Colors.greenAccent,
       Colors.yellow, Colors.white, Colors.yellow,
@@ -78,38 +79,74 @@ class MainMenuPage extends StatelessWidget {
   }
 
   // --- SIDEBAR ICON HELPER ---
-  Widget _buildSidebarIcon(BuildContext context, IconData icon, String route, bool isLandscape) {
-    final double size = isLandscape ? 35 : 44;
-    
-    return GestureDetector(
-      onTap: () => Navigator.of(context).pushNamed(route),
-      child: Stack(
-        children: [
-          Icon(
-            icon,
-            size: size + 2,
-            color: Colors.black,
-          ),
-          Positioned(
-            left: 1,
-            top: 1,
-            child: ShaderMask(
-              shaderCallback: (Rect bounds) {
-                return const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color.fromARGB(255, 239, 140, 47), Color(0xFFB0B0B0)],
-                ).createShader(bounds);
-              },
-              child: Icon(
-                icon,
-                color: Colors.white,
-                size: size,
-              ),
+  Widget _buildSidebarIcon(BuildContext context, IconData icon, String routeName) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: GestureDetector(
+        onTap: () => Navigator.of(context).pushNamed(routeName), // Using direct string
+        child: Icon(icon, color: Colors.black, size: 40),
+      ),
+    );
+  }
+
+  // --- NEW: SHOW CHALLENGE CONFIRMATION ---
+  void _showChallengeConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, 
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: 320,
+            height: 220,
+            decoration: BoxDecoration(
+              color: const Color(0xFFB2B9D1), 
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.black, width: 3),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "You only get 1 chance",
+                  style: GoogleFonts.pixelifySans(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  "Continue to Challenge?",
+                  style: GoogleFonts.pixelifySans(
+                    fontSize: 18,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 25),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildDialogButton("Yes", () {
+                      Navigator.pop(context); // Close dialog
+                      // Pass data to DailyChallengePage
+                      Navigator.pushNamed(
+                        context, 
+                        AppRoutes.dailyChallenge, 
+                        arguments: {'isNewbie': isNewbie, 'streak': userStreak, 'user_id': userId}
+                      );
+                    }),
+                    _buildDialogButton("No", () {
+                      Navigator.pop(context); // Close dialog
+                    }),
+                  ],
+                )
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -138,13 +175,10 @@ class MainMenuPage extends StatelessWidget {
               top: 25,
               child: Column(
                 children: [
-                  _buildSidebarIcon(context, Icons.account_circle, '/profile', isLandscape),
-                  const SizedBox(height: 15),
-                  _buildSidebarIcon(context, Icons.emoji_events, '/achievements', isLandscape),
-                  const SizedBox(height: 15),
-                  _buildSidebarIcon(context, Icons.leaderboard, '/leaderboards', isLandscape),
-                  const SizedBox(height: 15),
-                  _buildSidebarIcon(context, Icons.palette, '/theme', isLandscape),
+                  _buildSidebarIcon(context, Icons.account_circle, '/profile'),
+                  _buildSidebarIcon(context, Icons.emoji_events, '/achievements'),
+                  _buildSidebarIcon(context, Icons.leaderboard, '/leaderboards'),
+                  _buildSidebarIcon(context, Icons.palette, '/theme'),
                 ],
               ),
             ),
@@ -177,7 +211,7 @@ class MainMenuPage extends StatelessWidget {
                           border: Border(bottom: BorderSide(color: Colors.black, width: 3)),
                         ),
                         child: Text(
-                          'Daily Challenge',
+                          isLoading ? 'Loading...' : (isNewbie ? 'Daily Challenge' : 'Weekly Challenge'),
                           textAlign: TextAlign.center,
                           style: GoogleFonts.pixelifySans(
                             fontWeight: FontWeight.bold,
@@ -185,43 +219,17 @@ class MainMenuPage extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const Spacer(),
-                      Text('Reward:', style: GoogleFonts.pixelifySans(fontSize: 12)),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 20),
+                      Text('Reward:', style: GoogleFonts.pixelifySans()),
+                      const SizedBox(height: 10),
                       Container(
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
                           color: Colors.black,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white, width: 1),
-                        ),
-                        // Palette icon represents a background color reward
-                        child: const Icon(Icons.palette, color: Colors.cyanAccent, size: 24),
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      // --- PLAY NOW BUTTON ---
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pushNamed('/game'),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.black, width: 2),
-                          ),
-                          child: Text(
-                            'Play Now',
-                            style: GoogleFonts.pixelifySans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
                         ),
                       ),
-                      const Spacer(),
                     ],
                   ),
                 ),
@@ -230,39 +238,72 @@ class MainMenuPage extends StatelessWidget {
 
             // 3. MAIN CENTER CONTENT
             Align(
-              alignment: Alignment.center,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildLogoGrid(screenHeight),
-                    SizedBox(height: isLandscape ? 8 : 15),
-                    _buildTitleText('Tap & Match', isLandscape ? 40 : 55, const Color(0xFFFCA016)),
-                    _buildTitleText('The Color Game', isLandscape ? 16 : 22, const Color(0xFF20DEFF)),
-                    SizedBox(height: isLandscape ? 8 : 25),
-                    _buildMenuButton(
-                      text: 'Play',
-                      icon: Icons.play_arrow,
-                      color: const Color(0xFFAEC6FF),
-                      isLandscape: isLandscape,
-                      onTap: () => Navigator.of(context).pushNamed('/game'),
-                    ),
-                    _buildMenuButton(
-                      text: 'Exit',
-                      icon: Icons.close,
-                      color: const Color(0xFFFF7E7E),
-                      isLandscape: isLandscape,
-                      onTap: () {
-                        // Using your specific platform-check logic
-                        if (Platform.isAndroid) {
-                          SystemNavigator.pop();
-                        } else if (Platform.isIOS) {
-                          exit(0);
-                        }
-                      },
-                    ),
-                  ],
-                ),
+              alignment: const Alignment(0, -0.2),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildLogoGrid(),
+                  const SizedBox(height: 15),
+                  Stack(
+                    children: [
+                      Text(
+                        'Tap & Match',
+                        style: GoogleFonts.pixelifySans(
+                          fontSize: 55,
+                          fontWeight: FontWeight.bold,
+                          foreground: Paint()
+                            ..style = PaintingStyle.stroke
+                            ..strokeWidth = 6
+                            ..color = Colors.black,
+                        ),
+                      ),
+                      Text(
+                        'Tap & Match',
+                        style: GoogleFonts.pixelifySans(
+                          fontSize: 55,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFFFCA016),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Stack(
+                    children: [
+                      Text(
+                        'The Color Game',
+                        style: GoogleFonts.pixelifySans(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          foreground: Paint()
+                            ..style = PaintingStyle.stroke
+                            ..strokeWidth = 4
+                            ..color = Colors.black,
+                        ),
+                      ),
+                      Text(
+                        'The Color Game',
+                        style: GoogleFonts.pixelifySans(
+                          fontSize: 22,
+                          color: const Color(0xFF20DEFF),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 25),
+                  _buildMenuButton(
+                    text: 'Play',
+                    icon: Icons.play_arrow,
+                    color: const Color(0xFFAEC6FF),
+                    onTap: () => Navigator.of(context).pushNamed('/game'),
+                  ),
+                  _buildMenuButton(
+                    text: 'Exit',
+                    icon: Icons.close,
+                    color: const Color(0xFFFF7E7E),
+                    onTap: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  ),
+                ],
               ),
             ),
           ],
