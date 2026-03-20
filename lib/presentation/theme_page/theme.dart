@@ -13,6 +13,7 @@ class ThemePage extends StatefulWidget {
 class _ThemePageState extends State<ThemePage> {
   int userId = 1; // Default fallback
   List<String> unlockedColors = ["#A9A9A9"];
+  String selectedTheme = "#A9A9A9";
   bool isLoading = true;
 
   final Map<String, String> colorNames = {
@@ -34,17 +35,21 @@ class _ThemePageState extends State<ThemePage> {
     if (args != null && args.containsKey('user_id')) {
       userId = args['user_id'];
     }
-    _fetchUnlockedThemes();
+    _fetchUserData();
   }
 
-  Future<void> _fetchUnlockedThemes() async {
+  Future<void> _fetchUserData() async {
     try {
-      final response = await http.get(Uri.parse('http://127.0.0.1:8000/users/$userId'));
+      final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         String themesString = data['unlocked_themes'] ?? "";
         setState(() {
           unlockedColors = themesString.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+          if (!unlockedColors.contains("#A9A9A9")) {
+            unlockedColors.insert(0, "#A9A9A9");
+          }
+          selectedTheme = data['selected_theme'] ?? "#A9A9A9";
           isLoading = false;
         });
       }
@@ -53,25 +58,47 @@ class _ThemePageState extends State<ThemePage> {
     }
   }
 
+  Future<void> _selectTheme(String hex) async {
+    try {
+      final response = await http.put(Uri.parse('http://localhost:8000/select-theme/$userId?theme_color=${Uri.encodeComponent(hex)}'));
+      if (response.statusCode == 200) {
+        setState(() => selectedTheme = hex);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Theme changed to ${colorNames[hex] ?? hex}!")),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error selecting theme: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    Color themeColor = Color(int.parse(selectedTheme.replaceFirst('#', '0xFF')));
     return Scaffold(
       body: Container(
         width: double.infinity, height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(center: Alignment.center, radius: 1.2, colors: [Color(0xFFB0B0B0), Color(0xFF606060)]),
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.2,
+            colors: [
+              themeColor.withOpacity(0.8),
+              themeColor.withOpacity(0.4),
+            ],
+          ),
         ),
         child: Stack(
           children: [
             Positioned(left: 20, top: 20, child: GestureDetector(onTap: () => Navigator.pop(context), child: _buildIconButton(Icons.arrow_back_ios_new))),
             Align(
-              alignment: Alignment.topCenter,
+              alignment: Alignment.center,
               child: Padding(
                 padding: const EdgeInsets.only(top: 65, bottom: 45),
                 child: Container(
                   width: MediaQuery.of(context).size.width * 0.85,
                   height: MediaQuery.of(context).size.height * 0.75,
-                  decoration: BoxDecoration(color: const Color(0xFFD9D9D9), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.black, width: 3)),
+                  decoration: BoxDecoration(color: const Color(0xFFD9D9D9).withOpacity(0.9), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.black, width: 3)),
                   child: Column(
                     children: [
                       _buildHeader(),
@@ -125,10 +152,28 @@ class _ThemePageState extends State<ThemePage> {
 
   Widget _themeItem(String hexCode) {
     Color itemColor = Color(int.parse(hexCode.replaceFirst('#', '0xFF')));
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8), height: 45,
-      decoration: BoxDecoration(color: itemColor, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.black, width: 1.5)),
-      child: Center(child: Text(colorNames[hexCode] ?? "Unknown", style: GoogleFonts.pixelifySans(fontSize: 14, color: itemColor.computeLuminance() > 0.5 ? Colors.black : Colors.white, fontWeight: FontWeight.bold))),
+    bool isSelected = selectedTheme == hexCode;
+    return GestureDetector(
+      onTap: () => _selectTheme(hexCode),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8), height: 45,
+        decoration: BoxDecoration(
+          color: itemColor, 
+          borderRadius: BorderRadius.circular(6), 
+          border: Border.all(color: isSelected ? Colors.white : Colors.black, width: isSelected ? 3 : 1.5),
+          boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)] : [],
+        ),
+        child: Center(
+          child: Text(
+            colorNames[hexCode] ?? "Unknown", 
+            style: GoogleFonts.pixelifySans(
+              fontSize: 14, 
+              color: itemColor.computeLuminance() > 0.5 ? Colors.black : Colors.white, 
+              fontWeight: FontWeight.bold
+            )
+          )
+        ),
+      ),
     );
   }
 

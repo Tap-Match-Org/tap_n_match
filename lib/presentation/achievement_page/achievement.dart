@@ -1,25 +1,64 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-// Import the list file you just created
+import 'package:http/http.dart' as http;
 import 'achievement_list.dart'; 
 
-class AchievementPage extends StatelessWidget {
+class AchievementPage extends StatefulWidget {
   const AchievementPage({super.key});
+
+  @override
+  State<AchievementPage> createState() => _AchievementPageState();
+}
+
+class _AchievementPageState extends State<AchievementPage> {
+  int userId = 1; // Default fallback
+  String selectedTheme = "#A9A9A9";
+  bool isLoading = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null && args.containsKey('user_id')) {
+      userId = args['user_id'];
+    }
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          selectedTheme = data['selected_theme'] ?? "#A9A9A9";
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
+      setState(() => isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final bool isLandscape = MediaQuery.of(context).size.width > MediaQuery.of(context).size.height;
+    Color themeColor = Color(int.parse(selectedTheme.replaceFirst('#', '0xFF')));
 
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: RadialGradient(
             center: Alignment.center,
             radius: 1.2,
-            colors: [Color(0xFFB0B0B0), Color(0xFF606060)],
+            colors: [
+              themeColor.withOpacity(0.8),
+              themeColor.withOpacity(0.4),
+            ],
           ),
         ),
         child: Stack(
@@ -79,10 +118,12 @@ class AchievementPage extends StatelessWidget {
                       ),
                     ),
                     
-                    // THE LIST CONTENT
-                    const Expanded(
-                      child: AchievementList(),
-                    ),
+                    if (isLoading)
+                      const Expanded(child: Center(child: CircularProgressIndicator()))
+                    else
+                      const Expanded(
+                        child: AchievementList(),
+                      ),
                   ],
                 ),
               ),

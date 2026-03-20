@@ -43,7 +43,7 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://127.0.0.1:8000/login'),
+        Uri.parse('http://localhost:8000/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': username,
@@ -84,18 +84,18 @@ class _LoginPageState extends State<LoginPage> {
         Text(
           text,
           style: GoogleFonts.pixelifySans(
-            fontSize: 39,
+            fontSize: 32,
             fontWeight: FontWeight.bold,
             foreground: Paint()
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 5.0
+              ..strokeWidth = 4.0
               ..color = Colors.black,
           ),
         ),
         Text(
           text,
           style: GoogleFonts.pixelifySans(
-            fontSize: 39,
+            fontSize: 32,
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -107,10 +107,10 @@ class _LoginPageState extends State<LoginPage> {
   InputDecoration _pixelInput(String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: GoogleFonts.pixelifySans(color: Colors.grey.shade600, fontSize: 18),
+      hintStyle: GoogleFonts.pixelifySans(color: Colors.grey.shade600, fontSize: 16),
       filled: true,
       fillColor: const Color(0xFFD9D9D9),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       enabledBorder: OutlineInputBorder(
         borderSide: const BorderSide(color: Colors.black, width: 3),
         borderRadius: BorderRadius.circular(8),
@@ -137,9 +137,10 @@ class _LoginPageState extends State<LoginPage> {
         ),
         child: Center(
           child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 20),
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 420),
-              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
+              constraints: const BoxConstraints(maxWidth: 340),
+              padding: const EdgeInsets.symmetric(horizontal: 23, vertical: 23),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   begin: Alignment.topCenter,
@@ -152,11 +153,10 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
+                  Center(
                     child: _buildOutlinedTitle('Login to Continue'),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 20),
                   TextField(
                     controller: _emailController,
                     textAlign: TextAlign.center,
@@ -164,7 +164,7 @@ class _LoginPageState extends State<LoginPage> {
                     decoration: _pixelInput('Username'),
                     textInputAction: TextInputAction.next,
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: _passwordController,
                     obscureText: true,
@@ -174,38 +174,34 @@ class _LoginPageState extends State<LoginPage> {
                     textInputAction: TextInputAction.done,
                     onSubmitted: (value) => _loginUser(),
                   ),
-                  const SizedBox(height: 25),
                   
-                  // Login Button with Loading Spinner
+                  // --- APPLIED NEW STYLE TO CONNECT BUTTON ---
+                  const SizedBox(height: 15),
                   _isLoading 
                     ? const CircularProgressIndicator(color: Colors.black)
-                    : ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFD8B4F8),
-                          side: const BorderSide(color: Colors.black, width: 3),
-                          padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onPressed: _loginUser, 
-                        child: Text(
-                          "CONNECT", 
-                          style: GoogleFonts.pixelifySans(
-                            color: Colors.black,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold
-                          )
+                    : SizedBox(
+                        width: 180, 
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          ),
+                          onPressed: _loginUser,
+                          child: Text(
+                            'LOGIN', 
+                            style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 14),
+                          ),
                         ),
                       ),
-                      
-                  const SizedBox(height: 20),
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pushNamed('/register'),
+                  
+                  // --- APPLIED NEW STYLE TO FOOTER LINK ---
+                  const SizedBox(height: 5),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pushNamed('/register'),
                     child: Text(
                       "Don't Have An Account?",
-                      style: GoogleFonts.pixelifySans(
-                        fontSize: 18, 
-                        color: Colors.black87,
-                      ),
+                      style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 12),
                     ),
                   ),
                 ],
