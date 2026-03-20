@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import '../presentation/splash/splash_page.dart';
-import '../presentation/login/login_page.dart';
-import '../presentation/register/register_page.dart';
+import '../presentation/auth/splash_page.dart';
+import '../presentation/auth/login_page.dart';
+import '../presentation/auth/register_page.dart';
 import '../presentation/main_menu/main_menu_page.dart';
-import '../presentation/profile_page/profile.dart';
-import '../presentation/achievement_page/achievement.dart';
-import '../presentation/leaderboards_page/leaderboards.dart';
-import '../presentation/theme_page/theme.dart';
-import '../presentation/play/play.dart';
-import '../presentation/daily_challenge/daily_challenge_page.dart';
+import '../presentation/sidebar_choices/profile.dart';
+import '../presentation/sidebar_choices/achievement.dart';
+import '../presentation/sidebar_choices/leaderboards.dart';
+import '../presentation/sidebar_choices/theme.dart';
+import '../presentation/game/play.dart';
+import '../presentation/game/daily_challenge_page.dart';
 
 class AppRoutes {
   static const splash = '/';
