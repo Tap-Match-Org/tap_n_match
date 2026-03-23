@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/infrastructure/soundmanager.dart';
 
 class ThemePage extends StatefulWidget {
   const ThemePage({super.key});
@@ -16,6 +17,12 @@ class _ThemePageState extends State<ThemePage> {
   String selectedTheme = "#A9A9A9";
   bool isLoading = true;
 
+  String selectedSound = "Default";
+  List<String> unlockedSounds = ["Default"];
+
+  String selectedMusic = "Default";
+  List<String> unlockedMusic = ["Default"];
+
   final Map<String, String> colorNames = {
     "#A9A9A9": "Default",
     "#98EE99": "Mint",
@@ -27,6 +34,11 @@ class _ThemePageState extends State<ThemePage> {
     "#00FFFF": "Cyan",
     "#FFD700": "Gold", 
   };
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -62,6 +74,7 @@ class _ThemePageState extends State<ThemePage> {
     try {
       final response = await http.put(Uri.parse('http://localhost:8000/select-theme/$userId?theme_color=${Uri.encodeComponent(hex)}'));
       if (response.statusCode == 200) {
+        if (!mounted) return;
         setState(() => selectedTheme = hex);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Theme changed to ${colorNames[hex] ?? hex}!")),
@@ -70,6 +83,30 @@ class _ThemePageState extends State<ThemePage> {
     } catch (e) {
       debugPrint("Error selecting theme: $e");
     }
+  }
+
+  Future<void> _selectSound(String soundName) async {
+    // For now, only "Default" is available. In the future, this can be synced with backend.
+    if (soundName == "Default") {
+      await soundManager.playTap();
+    }
+    if (!mounted) return;
+    setState(() => selectedSound = soundName);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Tap Sound changed to $soundName!")),
+    );
+  }
+
+  Future<void> _selectMusic(String musicName) async {
+    // For now, only "Default" is available. In the future, this can be synced with backend.
+    if (musicName == "Default") {
+      await soundManager.setSelectedBgMusic('audio/background_music/default_bgMusic.mp3');
+    }
+    if (!mounted) return;
+    setState(() => selectedMusic = musicName);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Music changed to $musicName!")),
+    );
   }
 
   @override
@@ -110,9 +147,9 @@ class _ThemePageState extends State<ThemePage> {
                             children: [
                               _buildThemeColumn("Background", const Color(0xFFAEC6FF), unlockedColors.map((hex) => _themeItem(hex)).toList()),
                               const VerticalDivider(color: Colors.black, thickness: 2, width: 0),
-                              _buildThemeColumn("Tap Sound", const Color(0xFFFFF9B0), []),
+                              _buildThemeColumn("Tap Sound", const Color(0xFFFFF9B0), unlockedSounds.map((name) => _soundItem(name)).toList()),
                               const VerticalDivider(color: Colors.black, thickness: 2, width: 0),
-                              _buildThemeColumn("Music", const Color(0xFFB4FF91), []),
+                              _buildThemeColumn("Music", const Color(0xFFB4FF91), unlockedMusic.map((name) => _musicItem(name)).toList()),
                             ],
                           ),
                         ),
@@ -169,6 +206,58 @@ class _ThemePageState extends State<ThemePage> {
             style: GoogleFonts.pixelifySans(
               fontSize: 14, 
               color: itemColor.computeLuminance() > 0.5 ? Colors.black : Colors.white, 
+              fontWeight: FontWeight.bold
+            )
+          )
+        ),
+      ),
+    );
+  }
+
+  Widget _soundItem(String name) {
+    bool isSelected = selectedSound == name;
+    return GestureDetector(
+      onTap: () => _selectSound(name),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8), height: 45,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF9B0), 
+          borderRadius: BorderRadius.circular(6), 
+          border: Border.all(color: isSelected ? Colors.white : Colors.black, width: isSelected ? 3 : 1.5),
+          boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)] : [],
+        ),
+        child: Center(
+          child: Text(
+            name, 
+            style: GoogleFonts.pixelifySans(
+              fontSize: 14, 
+              color: Colors.black, 
+              fontWeight: FontWeight.bold
+            )
+          )
+        ),
+      ),
+    );
+  }
+
+  Widget _musicItem(String name) {
+    bool isSelected = selectedMusic == name;
+    return GestureDetector(
+      onTap: () => _selectMusic(name),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8), height: 45,
+        decoration: BoxDecoration(
+          color: const Color(0xFFB4FF91), 
+          borderRadius: BorderRadius.circular(6), 
+          border: Border.all(color: isSelected ? Colors.white : Colors.black, width: isSelected ? 3 : 1.5),
+          boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)] : [],
+        ),
+        child: Center(
+          child: Text(
+            name, 
+            style: GoogleFonts.pixelifySans(
+              fontSize: 14, 
+              color: Colors.black, 
               fontWeight: FontWeight.bold
             )
           )

@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tap_n_match/infrastructure/soundmanager.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -8,7 +10,6 @@ class SplashPage extends StatefulWidget {
   State<SplashPage> createState() => _SplashPageState();
 }
 
-// 1. Add SingleTickerProviderStateMixin for the animation
 class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _opacityAnimation;
@@ -16,24 +17,29 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    // 2. Initialize the controller (set duration for one fade cycle)
+
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     );
 
-    // 3. Define the opacity range (0.2 to 1.0)
     _opacityAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
 
-    // 4. Make it repeat back and forth (yoyo effect)
     _controller.repeat(reverse: true);
+  }
+
+  void _goToLogin() {
+    if (mounted) {
+      soundManager.playBgMusic();
+      Navigator.of(context).pushReplacementNamed('/login');
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose(); // Always dispose controllers to save memory
+    _controller.dispose();
     super.dispose();
   }
 
@@ -45,7 +51,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => Navigator.of(context).pushReplacementNamed('/login'),
+      onTap: _goToLogin,
       child: Scaffold(
         body: Container(
           decoration: const BoxDecoration(
@@ -69,7 +75,6 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
                     _buildOutlinedText('The Color Game', isLandscape ? 18 : 20, const Color(0xFF20DEFF)),
                     SizedBox(height: isLandscape ? screenHeight * 0.05 : 24),
                     
-                    // Progress Bar
                     SizedBox(
                       width: isLandscape ? screenWidth * 0.4 : screenWidth * 0.7,
                       child: ClipRRect(
@@ -84,17 +89,16 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
                     ),
                     
                     const SizedBox(height: 8),
-                    const Text('100%', style: TextStyle(color: Colors.white, fontSize: 12)),
+                    Text('100%', style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 12)),
                     const SizedBox(height: 4),
 
-                    // 5. Wrap your text in a FadeTransition
                     FadeTransition(
                       opacity: _opacityAnimation,
-                      child: const Text(
+                      child: Text(
                         'Tap to play',
-                        style: TextStyle(
-                          color: Color.fromARGB(255, 172, 160, 160),
-                          fontSize: 14, // Slightly bigger for visibility
+                        style: GoogleFonts.pixelifySans(
+                          color: const Color.fromARGB(255, 172, 160, 160),
+                          fontSize: 14,
                           fontWeight: FontWeight.normal,
                         ),
                       ),
@@ -109,7 +113,6 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     );
   }
 
-  // ... rest of your _buildOutlinedText and _buildLogoGrid methods stay the same ...
   Widget _buildOutlinedText(String text, double size, Color fill) {
     return Stack(
       alignment: Alignment.center,

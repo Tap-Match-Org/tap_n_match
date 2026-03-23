@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/infrastructure/soundmanager.dart';
 
 class MainMenuPage extends StatefulWidget {
   MainMenuPage({super.key});
@@ -15,7 +16,7 @@ class MainMenuPage extends StatefulWidget {
 class _MainMenuPageState extends State<MainMenuPage> {
   int userId = 1; // Default fallback
   bool isNewbie = true;
-  int userStreak = 1;
+  int userStreak = 0;
   String selectedTheme = "#A9A9A9";
 
   @override
@@ -34,14 +35,145 @@ class _MainMenuPageState extends State<MainMenuPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
-          userStreak = data['streak'] ?? 1;
-          isNewbie = userStreak <= 7;
+          userStreak = data['streak'] ?? 0;
+          isNewbie = userStreak < 7;
           selectedTheme = data['selected_theme'] ?? "#A9A9A9";
         });
       }
     } catch (e) {
       debugPrint('Error loading user data: $e');
     }
+  }
+
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: Stack(
+                children: [
+                  Container(
+                    width: 300,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0xFFAED9E0), Color(0xFF89AFCF)],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.black, width: 4),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'SETTINGS',
+                          style: GoogleFonts.pixelifySans(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        // Tap Sound Toggle
+                        _buildSettingsRow(
+                          'Tap Sound',
+                          Switch(
+                            value: soundManager.tapSoundEnabled,
+                            onChanged: (value) async {
+                              await soundManager.setTapSoundEnabled(value);
+                              setDialogState(() {});
+                            },
+                            activeColor: Colors.green,
+                          ),
+                        ),
+                        // Tap Volume Slider
+                        _buildVolumeSlider(
+                          'Tap Volume',
+                          soundManager.tapVolume,
+                          (value) async {
+                            await soundManager.setTapVolume(value);
+                            setDialogState(() {});
+                          },
+                        ),
+                        const Divider(color: Colors.black54),
+                        // Music Toggle
+                        _buildSettingsRow(
+                          'Music',
+                          Switch(
+                            value: soundManager.bgMusicEnabled,
+                            onChanged: (value) async {
+                              await soundManager.setBgMusicEnabled(value);
+                              setDialogState(() {});
+                            },
+                            activeColor: Colors.green,
+                          ),
+                        ),
+                        // Music Volume Slider
+                        _buildVolumeSlider(
+                          'Music Volume',
+                          soundManager.bgVolume,
+                          (value) async {
+                            await soundManager.setBgVolume(value);
+                            setDialogState(() {});
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    right: 10,
+                    top: 10,
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(Icons.close, color: Colors.black, size: 28),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSettingsRow(String label, Widget trailing) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.pixelifySans(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        trailing,
+      ],
+    );
+  }
+
+  Widget _buildVolumeSlider(String label, double value, ValueChanged<double> onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.pixelifySans(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        Slider(
+          value: value,
+          min: 0.0,
+          max: 1.0,
+          divisions: 10,
+          onChanged: onChanged,
+          activeColor: Colors.black,
+          inactiveColor: Colors.black26,
+        ),
+      ],
+    );
   }
 
   // Configuration for the 7 newbie days rewards
@@ -57,7 +189,7 @@ class _MainMenuPageState extends State<MainMenuPage> {
 
   // Get current reward based on user streak
   Map<String, dynamic> _getCurrentReward() {
-    int index = (userStreak == 0 ? 0 : (userStreak - 1)).clamp(0, 6);
+    int index = userStreak.clamp(0, 6);
     return newbieDaysConfig[index];
   }
 
@@ -82,11 +214,14 @@ class _MainMenuPageState extends State<MainMenuPage> {
         ),
         itemCount: 9,
         itemBuilder: (context, index) {
-          return Container(
-            decoration: BoxDecoration(
-              color: gridColors[index],
-              border: Border.all(color: Colors.black, width: 2),
-              borderRadius: BorderRadius.circular(8),
+          return GestureDetector(
+            onTap: () {}, // Empty tap to register as interactive
+            child: Container(
+              decoration: BoxDecoration(
+                color: gridColors[index],
+                border: Border.all(color: Colors.black, width: 2),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           );
         },
@@ -200,6 +335,34 @@ class _MainMenuPageState extends State<MainMenuPage> {
                   const SizedBox(height: 15),
                   _buildSidebarIcon(context, Icons.palette, '/theme', isLandscape),
                 ],
+              ),
+            ),
+
+            // Settings Icon (Top Right)
+            Positioned(
+              right: 20,
+              top: 25,
+              child: GestureDetector(
+                onTap: _showSettingsDialog,
+                child: Stack(
+                  children: [
+                    const Icon(Icons.settings, size: 46, color: Colors.black),
+                    Positioned(
+                      left: 1,
+                      top: 1,
+                      child: ShaderMask(
+                        shaderCallback: (Rect bounds) {
+                          return const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color.fromARGB(255, 239, 140, 47), Color(0xFFB0B0B0)],
+                          ).createShader(bounds);
+                        },
+                        child: const Icon(Icons.settings, color: Colors.white, size: 44),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 

@@ -14,7 +14,7 @@ class DailyChallengePage extends StatefulWidget {
 class _DailyChallengePageState extends State<DailyChallengePage> {
   int userId = 1; // Default fallback
   bool isNewbie = true;
-  int userStreak = 1;
+  int userStreak = 0;
   String selectedTheme = "#A9A9A9";
 
   List<int> userGrid = List.filled(25, 0);
@@ -195,7 +195,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null) {
       isNewbie = args['isNewbie'] ?? true;
-      userStreak = args['streak'] ?? 1;
+      userStreak = args['streak'] ?? 0;
       if (args.containsKey('user_id')) {
         userId = args['user_id'];
       }
@@ -208,7 +208,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
   void _setupChallenge() {
     int index;
     if (isNewbie) {
-      index = (userStreak == 0 ? 0 : (userStreak - 1)).clamp(0, 6);
+      index = userStreak.clamp(0, 6);
     } else {
       // Rotation based on day of week for non-newbies
       index = (DateTime.now().weekday - 1).clamp(0, 6);
@@ -339,7 +339,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
               const SizedBox(height: 10),
               Text("Check your themes page.", style: GoogleFonts.pixelifySans()),
             ] else
-              Text(isNewbie ? "Try again tomorrow!" : "Try again next week!", 
+              Text(isNewbie ? "2 Attempts a day only!" : "Try again next week!", 
                    style: GoogleFonts.pixelifySans()),
           ],
         ),

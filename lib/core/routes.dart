@@ -3,10 +3,10 @@ import '../presentation/auth/splash_page.dart';
 import '../presentation/auth/login_page.dart';
 import '../presentation/auth/register_page.dart';
 import '../presentation/main_menu/main_menu_page.dart';
-import '../presentation/sidebar_choices/profile.dart';
-import '../presentation/sidebar_choices/achievement.dart';
-import '../presentation/sidebar_choices/leaderboards.dart';
-import '../presentation/sidebar_choices/theme.dart';
+import '../presentation/personal_feature/profile.dart';
+import '../presentation/personal_feature/achievement.dart';
+import '../presentation/community_features/leaderboards.dart';
+import '../presentation/personal_feature/theme.dart';
 import '../presentation/game/play.dart';
 import '../presentation/game/daily_challenge_page.dart';
 
