@@ -3,7 +3,11 @@
 ## 1. Overview
 Refactor the current login implementation in `login_page.dart` to follow Clean Architecture principles (Domain, Application, Infrastructure layers) and use `GetIt` for dependency injection. This will decouple the UI from the HTTP logic and the FastAPI backend.
 
-## 2. Architecture & Components
+## 2. Prerequisites
+*   **Dependencies:** Add `get_it: ^7.6.0` to `pubspec.yaml`.
+*   **Existing Dependencies:** Ensure `http` and `google_fonts` are already present (verified).
+
+## 3. Architecture & Components
 
 ### 2.1 Domain Layer
 *   **`User` Entity (`lib/domain/entities/user.dart`):**
