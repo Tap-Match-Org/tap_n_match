@@ -179,11 +179,10 @@ class _RegisterPageState extends State<RegisterPage> {
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: Colors.black, width: 2),
                             ),
-                            child: Text(_isSendingCode ? '...' : 'Send', 
+                            child: Text(_isSendingCode ? '...' : 'Send',
                               style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 11)),
                           ),
-                        ),
-                      ],
+                        ),                      ],
                     ),
                     const SizedBox(height: 8),
                     

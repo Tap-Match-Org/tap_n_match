@@ -18,6 +18,7 @@ class _MainMenuPageState extends State<MainMenuPage> {
   bool isNewbie = true;
   int userStreak = 0;
   String selectedTheme = "#A9A9A9";
+  bool challengeCompletedToday = false;
 
   @override
   void didChangeDependencies() {
@@ -38,6 +39,11 @@ class _MainMenuPageState extends State<MainMenuPage> {
           userStreak = data['streak'] ?? 0;
           isNewbie = userStreak < 7;
           selectedTheme = data['selected_theme'] ?? "#A9A9A9";
+          
+          // Check if challenge was completed today
+          final String? lastChallengeDate = data['last_challenge_date'];
+          final String today = DateTime.now().toIso8601String().split('T')[0];
+          challengeCompletedToday = (lastChallengeDate == today);
         });
       }
     } catch (e) {
@@ -230,6 +236,7 @@ class _MainMenuPageState extends State<MainMenuPage> {
   }
 
   // --- STYLIZED MENU BUTTON (Play / Exit) ---
+  // --- STYLIZED MENU BUTTON (Play / Exit) ---
   Widget _buildMenuButton({
     required String text,
     required Color color,
@@ -376,86 +383,118 @@ class _MainMenuPageState extends State<MainMenuPage> {
                   width: isLandscape ? 150 : 170,
                   height: isLandscape ? 210 : 250, 
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 136, 198, 232),
+                    color: challengeCompletedToday 
+                        ? const Color(0xFF98EE99).withOpacity(0.9) 
+                        : const Color.fromARGB(255, 136, 198, 232),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: Colors.black, width: 3),
                   ),
-                  child: Column(
-                    children: [
-                      // Header
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFC6D8FF),
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(16),
-                            topRight: Radius.circular(16),
+                  child: challengeCompletedToday 
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green, size: 60),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Day $userStreak\nChallenge\nCompleted',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.pixelifySans(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: Colors.black,
+                            ),
                           ),
-                          border: Border(bottom: BorderSide(color: Colors.black, width: 3)),
-                        ),
-                        child: Text(
-                          'Daily Challenge',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.pixelifySans(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                          const SizedBox(height: 10),
+                          Text(
+                            'Come back\ntomorrow!',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.pixelifySans(
+                              fontSize: 12,
+                              color: Colors.black87,
+                            ),
                           ),
-                        ),
-                      ),
-                      const Spacer(),
-                      Text('Reward:', style: GoogleFonts.pixelifySans(fontSize: 12, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 5),
-                      // Colored Reward Box
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Color(int.parse(_getCurrentReward()["color"].replaceFirst('#', '0xFF'))),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color.fromARGB(255, 0, 0, 0), width: 2),
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        _getCurrentReward()["name"],
-                        style: GoogleFonts.pixelifySans(fontSize: 10, fontWeight: FontWeight.bold),
-                      ),
-                      const Spacer(),
-                      // --- RECTANGULAR PLAY NOW BUTTON ---
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
-                        child: GestureDetector(
-                          onTap: () => Navigator.of(context).pushNamed(
-                            '/daily_challenge',
-                            arguments: {
-                              'user_id': userId,
-                              'isNewbie': isNewbie,
-                              'streak': userStreak,
-                            },
-                          ),
-                          child: Container(
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          // Header
+                          Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: const Color.fromARGB(255, 231, 237, 236), // Rectangular button color
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color.fromARGB(86, 0, 0, 0), width: 2),
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFC6D8FF),
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(16),
+                                topRight: Radius.circular(16),
+                              ),
+                              border: Border(bottom: BorderSide(color: Colors.black, width: 3)),
                             ),
                             child: Text(
-                              'Play Now',
+                              'Daily Challenge',
                               textAlign: TextAlign.center,
                               style: GoogleFonts.pixelifySans(
-                                color: Colors.black,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                                fontSize: 12,
                               ),
                             ),
                           ),
-                        ),
+                          const Spacer(),
+                          Text('Reward:', style: GoogleFonts.pixelifySans(fontSize: 12, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 5),
+                          // Colored Reward Box
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Color(int.parse(_getCurrentReward()["color"].replaceFirst('#', '0xFF'))),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color.fromARGB(255, 0, 0, 0), width: 2),
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            _getCurrentReward()["name"],
+                            style: GoogleFonts.pixelifySans(fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                          const Spacer(),
+                          // --- RECTANGULAR PLAY NOW BUTTON ---
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+                            child: GestureDetector(
+                              onTap: () async {
+                                final result = await Navigator.of(context).pushNamed(
+                                  '/daily_challenge',
+                                  arguments: {
+                                    'user_id': userId,
+                                    'isNewbie': isNewbie,
+                                    'streak': userStreak,
+                                  },
+                                );
+                                // Refresh data when returning from challenge
+                                _loadUserData();
+                              },
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: const Color.fromARGB(255, 231, 237, 236), // Rectangular button color
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color.fromARGB(86, 0, 0, 0), width: 2),
+                                ),
+                                child: Text(
+                                  'Play Now',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.pixelifySans(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
                 ),
               ),
             ),

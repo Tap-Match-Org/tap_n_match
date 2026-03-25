@@ -190,22 +190,27 @@ class _ThemePageState extends State<ThemePage> {
   Widget _themeItem(String hexCode) {
     Color itemColor = Color(int.parse(hexCode.replaceFirst('#', '0xFF')));
     bool isSelected = selectedTheme == hexCode;
+    String name = colorNames[hexCode] ?? hexCode;
+    
+    // Check luminance to decide if text should be white or black for readability
+    bool useWhiteText = itemColor.computeLuminance() < 0.4 || isSelected;
+
     return GestureDetector(
       onTap: () => _selectTheme(hexCode),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8), height: 45,
         decoration: BoxDecoration(
-          color: itemColor, 
-          borderRadius: BorderRadius.circular(6), 
+          color: itemColor,
+          borderRadius: BorderRadius.circular(6),
           border: Border.all(color: isSelected ? Colors.white : Colors.black, width: isSelected ? 3 : 1.5),
           boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)] : [],
         ),
         child: Center(
           child: Text(
-            colorNames[hexCode] ?? "Unknown", 
+            isSelected ? "$name (ACTIVE)" : name,
             style: GoogleFonts.pixelifySans(
-              fontSize: 14, 
-              color: itemColor.computeLuminance() > 0.5 ? Colors.black : Colors.white, 
+              color: useWhiteText ? Colors.white : Colors.black,
+              fontSize: 12,
               fontWeight: FontWeight.bold
             )
           )

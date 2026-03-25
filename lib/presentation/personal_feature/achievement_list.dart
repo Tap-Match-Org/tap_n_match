@@ -4,83 +4,129 @@ import 'package:google_fonts/google_fonts.dart';
 class AchievementList extends StatelessWidget {
   const AchievementList({super.key});
 
+  static final List<_AchievementData> _achievements = [
+    const _AchievementData(
+      title: 'First Match',
+      description: 'Clear your first color pattern.',
+      progress: 1.0,
+      isUnlocked: true,
+      rewardType: 'Trophy',
+      icon: Icons.emoji_events,
+    ),
+    const _AchievementData(
+      title: 'Getting Warmed Up',
+      description: 'Clear 5 regular levels.',
+      progress: 0.4,
+      isUnlocked: false,
+      rewardType: 'Badge',
+      icon: Icons.local_fire_department,
+    ),
+    const _AchievementData(
+      title: 'Pattern Pro',
+      description: 'Clear 25 regular levels.',
+      progress: 0.08,
+      isUnlocked: false,
+      rewardType: 'Badge',
+      icon: Icons.grid_view,
+    ),
+    const _AchievementData(
+      title: 'Quick Fingers',
+      description: 'Beat a level with at least 5 seconds left.',
+      progress: 0.0,
+      isUnlocked: false,
+      rewardType: 'Title',
+      icon: Icons.bolt,
+    ),
+    const _AchievementData(
+      title: 'Daily Starter',
+      description: 'Complete your first daily challenge.',
+      progress: 0.0,
+      isUnlocked: false,
+      rewardType: 'Theme',
+      icon: Icons.calendar_today,
+    ),
+    const _AchievementData(
+      title: '3-Day Streak',
+      description: 'Complete daily challenges on 3 straight days.',
+      progress: 0.33,
+      isUnlocked: false,
+      rewardType: 'Theme',
+      icon: Icons.whatshot,
+    ),
+    const _AchievementData(
+      title: '7-Day Streak',
+      description: 'Reach a 7-day daily challenge streak.',
+      progress: 0.14,
+      isUnlocked: false,
+      rewardType: 'Theme',
+      icon: Icons.workspace_premium,
+    ),
+    const _AchievementData(
+      title: 'Theme Hunter',
+      description: 'Unlock 3 color themes.',
+      progress: 0.33,
+      isUnlocked: false,
+      rewardType: 'Collection',
+      icon: Icons.palette,
+    ),
+    const _AchievementData(
+      title: 'Palette Collector',
+      description: 'Unlock 7 color themes.',
+      progress: 0.14,
+      isUnlocked: false,
+      rewardType: 'Collection',
+      icon: Icons.color_lens,
+    ),
+    const _AchievementData(
+      title: 'Comeback',
+      description: 'Lose a level, retry, then win.',
+      progress: 0.0,
+      isUnlocked: false,
+      rewardType: 'Trophy',
+      icon: Icons.replay,
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    // This list will eventually be populated by your Domain Layer / Firebase
-    return ListView(
+    return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      children: [
-        _buildAchievementTile(
-          title: "First Match",
-          description: "Match your first color pattern successfully.",
-          progress: 1.0, // 100% complete
-          isUnlocked: true,
-          rewardType: "Trophy",
-        ),
-        _buildAchievementTile(
-          title: "Speedster I",
-          description: "Complete 5 levels in under 10 seconds each.",
-          progress: 0.6, // 3/5 complete
-          isUnlocked: false,
-          rewardType: "Audio",
-        ),
-        _buildAchievementTile(
-          title: "Color Collector",
-          description: "Unlock the 'Amethyst' background theme.",
-          progress: 0.0,
-          isUnlocked: false,
-          rewardType: "Theme",
-        ),
-        _buildAchievementTile(
-          title: "Daily Grinder",
-          description: "Complete 7 Daily Challenges in a row.",
-          progress: 0.2, // 1/7 complete
-          isUnlocked: false,
-          rewardType: "Reward",
-        ),
-      ],
+      itemCount: _achievements.length,
+      itemBuilder: (context, index) => _buildAchievementTile(_achievements[index]),
     );
   }
 
-  Widget _buildAchievementTile({
-    required String title,
-    required String description,
-    required double progress,
-    required bool isUnlocked,
-    required String rewardType,
-  }) {
+  Widget _buildAchievementTile(_AchievementData achievement) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isUnlocked ? Colors.white : Colors.white.withOpacity(0.7),
+        color: achievement.isUnlocked ? Colors.white : Colors.white.withOpacity(0.75),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black, width: 2),
       ),
       child: Row(
         children: [
-          // Icon Box
           Container(
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: isUnlocked ? const Color(0xFFAEC6FF) : Colors.grey,
+              color: achievement.isUnlocked ? const Color(0xFFAEC6FF) : Colors.grey,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.black, width: 1.5),
             ),
             child: Icon(
-              isUnlocked ? Icons.emoji_events : Icons.lock,
-              color: isUnlocked ? Colors.white : Colors.black54,
+              achievement.isUnlocked ? achievement.icon : Icons.lock,
+              color: achievement.isUnlocked ? Colors.white : Colors.black54,
             ),
           ),
           const SizedBox(width: 15),
-          // Text and Progress
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  achievement.title,
                   style: GoogleFonts.pixelifySans(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -88,14 +134,13 @@ class AchievementList extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  description,
+                  achievement.description,
                   style: GoogleFonts.pixelifySans(
                     fontSize: 12,
                     color: Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 8),
-                // Progress Bar
                 Stack(
                   children: [
                     Container(
@@ -107,7 +152,7 @@ class AchievementList extends StatelessWidget {
                       ),
                     ),
                     FractionallySizedBox(
-                      widthFactor: progress,
+                      widthFactor: achievement.progress.clamp(0.0, 1.0),
                       child: Container(
                         height: 10,
                         decoration: BoxDecoration(
@@ -122,25 +167,46 @@ class AchievementList extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // Reward Label
-          Column(
-            children: [
-              Text(
-                "Type",
-                style: GoogleFonts.pixelifySans(fontSize: 10, color: Colors.grey),
-              ),
-              Text(
-                rewardType,
-                style: GoogleFonts.pixelifySans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFFFCA016),
+          SizedBox(
+            width: 72,
+            child: Column(
+              children: [
+                Text(
+                  'Type',
+                  style: GoogleFonts.pixelifySans(fontSize: 10, color: Colors.grey),
                 ),
-              ),
-            ],
+                Text(
+                  achievement.rewardType,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.pixelifySans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFFCA016),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+class _AchievementData {
+  final String title;
+  final String description;
+  final double progress;
+  final bool isUnlocked;
+  final String rewardType;
+  final IconData icon;
+
+  const _AchievementData({
+    required this.title,
+    required this.description,
+    required this.progress,
+    required this.isUnlocked,
+    required this.rewardType,
+    required this.icon,
+  });
 }

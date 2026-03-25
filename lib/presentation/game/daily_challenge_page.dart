@@ -110,6 +110,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
 
   bool _isCheckingAttempts = true;
   bool _hasCheckedAttempts = false;
+  int _attempts = 0;
 
   Future<void> _checkAndRecordAttempt() async {
     if (_hasCheckedAttempts) return;
@@ -123,6 +124,13 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
             _showLimitReachedDialog();
           }
         } else {
+          // Store attempts from backend
+          if (mounted) {
+            setState(() {
+              _attempts = data['attempts'] ?? 0;
+            });
+          }
+          
           // Fetch user info to get the current selected theme
           final userResponse = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
           if (userResponse.statusCode == 200) {
@@ -173,7 +181,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
           style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold),
         ),
         content: Text(
-          "You can only play the daily challenge twice a day. Try again tomorrow!",
+          "You have no attempts left, comeback tomorrow for the next challenge",
           textAlign: TextAlign.center,
           style: GoogleFonts.pixelifySans(),
         ),
@@ -302,8 +310,31 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
     }
   }
 
+  void _resetChallenge() {
+    setState(() {
+      userGrid = List.filled(25, 0);
+      _secondsLeft = timeLimit;
+      _isGameOver = false;
+      _hasCheckedAttempts = false; 
+      _isCheckingAttempts = true;
+    });
+    _checkAndRecordAttempt();
+  }
+
   void _showResultDialog(bool won, {bool alreadyClaimed = false}) {
     setState(() => _isGameOver = true);
+    
+    String failureMessage = "Try again next week!";
+    bool canRetry = false;
+    if (!won && !alreadyClaimed) {
+      if (_attempts == 1) {
+        failureMessage = "You have 1 attempt left";
+        canRetry = true;
+      } else if (_attempts >= 2) {
+        failureMessage = "You have no attempts left, comeback tomorrow for the next challenge";
+      }
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -335,20 +366,37 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
               const SizedBox(height: 15),
               Text("$rewardName theme unlocked!", style: GoogleFonts.pixelifySans()),
             ] else if (alreadyClaimed) ...[
+              const Icon(Icons.info_outline, color: Colors.blue, size: 60),
+              const SizedBox(height: 15),
               Text("You already claimed this reward!", style: GoogleFonts.pixelifySans()),
               const SizedBox(height: 10),
               Text("Check your themes page.", style: GoogleFonts.pixelifySans()),
-            ] else
-              Text(isNewbie ? "2 Attempts a day only!" : "Try again next week!", 
+            ] else ...[
+              const Icon(Icons.timer_off, color: Colors.redAccent, size: 60),
+              const SizedBox(height: 15),
+              Text(failureMessage, 
+                   textAlign: TextAlign.center,
                    style: GoogleFonts.pixelifySans()),
+            ],
           ],
         ),
         actions: [
           Center(
-            child: _buildButton("Back to Menu", () {
-              Navigator.pop(context); // Close Dialog
-              Navigator.pop(context); // Exit Challenge Page
-            }),
+            child: Column(
+              children: [
+                if (canRetry) ...[
+                  _buildButton("Retry", () {
+                    Navigator.pop(context); // Close Dialog
+                    _resetChallenge();
+                  }),
+                  const SizedBox(height: 10),
+                ],
+                _buildButton("Back to Menu", () {
+                  Navigator.pop(context); // Close Dialog
+                  Navigator.pop(context); // Exit Challenge Page
+                }),
+              ],
+            ),
           )
         ],
       ),

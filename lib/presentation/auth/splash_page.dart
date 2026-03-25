@@ -54,6 +54,8 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
       onTap: _goToLogin,
       child: Scaffold(
         body: Container(
+          width: double.infinity,
+          height: double.infinity,
           decoration: const BoxDecoration(
             gradient: RadialGradient(
               colors: [Color(0xFFBA68C8), Color(0xFF7B1FA2)],
