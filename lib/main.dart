@@ -6,7 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:tap_n_match/firebase_options.dart';
 import 'package:tap_n_match/core/routes.dart';
-import 'package:tap_n_match/infrastructure/soundmanager.dart';
+import 'package:tap_n_match/core/soundmanager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

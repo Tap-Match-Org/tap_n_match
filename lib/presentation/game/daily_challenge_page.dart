@@ -11,7 +11,7 @@ class DailyChallengePage extends StatefulWidget {
   State<DailyChallengePage> createState() => _DailyChallengePageState();
 }
 
-class _DailyChallengePageState extends State<DailyChallengePage> {
+class _DailyChallengePageState extends State<DailyChallengePage> with SingleTickerProviderStateMixin {
   int userId = 1; // Default fallback
   bool isNewbie = true;
   int userStreak = 0;
@@ -20,6 +20,10 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
   List<int> userGrid = List.filled(25, 0);
   int _secondsLeft = 20;
   Timer? _timer;
+  Timer? _topSnackBarTimer;
+  OverlayEntry? _topSnackBarEntry;
+  late final AnimationController _topSnackBarController;
+  String _topSnackBarMessage = "";
   bool _isGameOver = false;
   bool _rewardClaimed = false;
 
@@ -27,6 +31,16 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
   late List<int> targetPattern;
   late String rewardName;
   late int timeLimit;
+
+  @override
+  void initState() {
+    super.initState();
+    _topSnackBarController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+      reverseDuration: const Duration(milliseconds: 220),
+    );
+  }
 
   // Configuration for the 7 newbie days with 4+ colors
   final List<Map<String, dynamic>> newbieDaysConfig = [
@@ -101,12 +115,6 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
       ]
     }, // Day 7 - Frame (4 colors)
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    // We'll start the timer after checking attempts
-  }
 
   bool _isCheckingAttempts = true;
   bool _hasCheckedAttempts = false;
@@ -232,6 +240,9 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _topSnackBarTimer?.cancel();
+    _topSnackBarEntry?.remove();
+    _topSnackBarController.dispose();
     super.dispose();
   }
 
@@ -266,13 +277,81 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
       
       await _unlockColorInBackend();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Pattern doesn't match!"),
-          duration: Duration(milliseconds: 500),
+      _showTopSnackBar("Pattern doesn't match!");
+    }
+  }
+
+  Future<void> _showTopSnackBar(String message) async {
+    _topSnackBarTimer?.cancel();
+    _topSnackBarMessage = message;
+
+    if (_topSnackBarEntry == null) {
+      final animation = CurvedAnimation(
+        parent: _topSnackBarController,
+        curve: Curves.easeOutBack,
+        reverseCurve: Curves.easeIn,
+      );
+
+      _topSnackBarEntry = OverlayEntry(
+        builder: (context) => Positioned(
+          top: MediaQuery.of(context).padding.top + 12,
+          left: 16,
+          right: 16,
+          child: IgnorePointer(
+            child: AnimatedBuilder(
+              animation: animation,
+              builder: (context, child) {
+                final offsetY = (-70 * (1 - animation.value)).clamp(-70, 0).toDouble();
+                return Opacity(
+                  opacity: animation.value.clamp(0, 1),
+                  child: Transform.translate(
+                    offset: Offset(0, offsetY),
+                    child: child,
+                  ),
+                );
+              },
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFB2B9D1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.black, width: 2),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    _topSnackBarMessage,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.pixelifySans(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       );
+
+      Overlay.of(context).insert(_topSnackBarEntry!);
+    } else {
+      _topSnackBarEntry!.markNeedsBuild();
     }
+
+    await _topSnackBarController.forward(from: 0);
+    _topSnackBarTimer = Timer(const Duration(milliseconds: 650), () async {
+      await _topSnackBarController.reverse();
+      _topSnackBarEntry?.remove();
+      _topSnackBarEntry = null;
+    });
   }
 
   Future<void> _unlockColorInBackend() async {

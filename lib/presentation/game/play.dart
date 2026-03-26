@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:tap_n_match/infrastructure/soundmanager.dart';
+import 'package:tap_n_match/core/soundmanager.dart';
 
 class GamePage extends StatefulWidget {
   const GamePage({super.key});
@@ -13,26 +13,43 @@ class GamePage extends StatefulWidget {
   State<GamePage> createState() => _GamePageState();
 }
 
-class _GamePageState extends State<GamePage> {
+class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin {
   int userId = 1;
   String selectedTheme = "#A9A9A9";
   int currentLevel = 1;
+  int currentScore = 0;
+  int achievementCount = 0;
+  int highestScore = 0;
   bool isGameOver = false;
   bool isPaused = false;
   bool _isLoading = true;
   bool _didInitialize = false;
+  bool _isSubmittingLevel = false;
+  bool _usedDoneButtonThisLevel = false;
+  bool _madeDoneMistakeThisLevel = false;
+  int _tapCountThisLevel = 0;
+  int _optimalTapCount = 0;
 
   late List<int> targetPattern;
   late List<int> userPattern;
   late int secondsLeft;
   Timer? timer;
   Timer? pauseShuffleTimer;
+  Timer? _topSnackBarTimer;
+  OverlayEntry? _topSnackBarEntry;
+  late final AnimationController _topSnackBarController;
+  String _topSnackBarMessage = "";
 
   final Random _random = Random();
 
   @override
   void initState() {
     super.initState();
+    _topSnackBarController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+      reverseDuration: const Duration(milliseconds: 220),
+    );
   }
 
   @override
@@ -65,6 +82,9 @@ class _GamePageState extends State<GamePage> {
         if (mounted) {
           setState(() {
             selectedTheme = data['selected_theme'] ?? "#A9A9A9";
+            currentScore = 0;
+            highestScore = data['highest_score'] ?? 0;
+            achievementCount = data['achievement_count'] ?? 0;
           });
         }
       }
@@ -81,6 +101,11 @@ class _GamePageState extends State<GamePage> {
     pauseShuffleTimer?.cancel();
     targetPattern = List.generate(totalBoxes, (index) => _nextPatternValue(config.colors));
     userPattern = List.filled(totalBoxes, 0);
+    _optimalTapCount = targetPattern.fold<int>(0, (sum, value) => sum + value);
+    _tapCountThisLevel = 0;
+    _usedDoneButtonThisLevel = false;
+    _madeDoneMistakeThisLevel = false;
+    _isSubmittingLevel = false;
     secondsLeft = config.time;
     isGameOver = false;
     isPaused = false;
@@ -319,14 +344,20 @@ class _GamePageState extends State<GamePage> {
 
   _DifficultyConfig _getDifficultyConfig(int level) {
     if (level <= 20) {
-      return _DifficultyConfig(rows: 2, cols: 2, colors: 4, time: 10, label: "Easy");
+      return _DifficultyConfig(rows: 2, cols: 2, colors: 4, time: 12, label: "Easy");
     } else if (level <= 50) {
-      return _DifficultyConfig(rows: 3, cols: 3, colors: 5, time: 20, label: "Normal");
+      return _DifficultyConfig(rows: 3, cols: 3, colors: 5, time: 15, label: "Normal");
     } else if (level <= 100) {
-      return _DifficultyConfig(rows: 3, cols: 6, colors: 5, time: 32, label: "Hard");
+      return _DifficultyConfig(rows: 5, cols: 5, colors: 5, time: 20, label: "Hard");
     } else {
-      return _DifficultyConfig(rows: 3, cols: 6, colors: 8, time: 60, label: "Extreme");
+      return _DifficultyConfig(rows: 5, cols: 5, colors: 8, time: 32, label: "Extreme");
     }
+  }
+
+  String _formatTime(int totalSeconds) {
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
   }
 
   int _nextPatternValue(int colorCount) {
@@ -340,34 +371,105 @@ class _GamePageState extends State<GamePage> {
     return 1 + ((roll - 1) ~/ 2);
   }
 
-  void _checkWin() {
-    bool isMatch = true;
+  bool _patternsMatch() {
     for (int i = 0; i < targetPattern.length; i++) {
       if (userPattern[i] != targetPattern[i]) {
-        isMatch = false;
-        break;
+        return false;
       }
     }
+    return true;
+  }
 
-    if (isMatch) {
+  void _handleCellTap(int index, _DifficultyConfig config) {
+    if (_isSubmittingLevel || isPaused || isGameOver) return;
+
+    setState(() {
+      _tapCountThisLevel++;
+      userPattern[index] = (userPattern[index] + 1) % config.colors;
+    });
+  }
+
+  void _checkWin({required bool triggeredByDone}) {
+    if (_isSubmittingLevel || isGameOver) return;
+
+    if (_patternsMatch()) {
       timer?.cancel();
-      _handleWin();
+      unawaited(_handleWin(triggeredByDone: triggeredByDone));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Not a match!"), duration: Duration(milliseconds: 500)),
-      );
+      _madeDoneMistakeThisLevel = true;
+      _showTopSnackBar("Not a match!");
     }
   }
 
-  void _handleWin() {
-    showDialog(
+  Future<void> _handleWin({required bool triggeredByDone}) async {
+    if (_isSubmittingLevel) return;
+
+    _isSubmittingLevel = true;
+    _usedDoneButtonThisLevel = triggeredByDone;
+    timer?.cancel();
+    pauseShuffleTimer?.cancel();
+    if (mounted) {
+      setState(() {});
+    }
+
+    final config = _getDifficultyConfig(currentLevel);
+    final payload = {
+      'level': currentLevel,
+      'difficulty': config.label,
+      'seconds_left': secondsLeft,
+      'used_done_button': _usedDoneButtonThisLevel,
+      'perfect_run': _tapCountThisLevel == _optimalTapCount && !_madeDoneMistakeThisLevel,
+      'boxes_tapped': _tapCountThisLevel,
+      'run_score_before_level': currentScore,
+    };
+
+    try {
+      final response = await http.put(
+        Uri.parse('http://localhost:8000/complete-level/$userId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Unexpected status code ${response.statusCode}');
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final scoreBreakdown = (data['score_breakdown'] as Map<String, dynamic>?) ?? {};
+      final earnedScore = (scoreBreakdown['total_earned'] as num?)?.toInt() ?? 0;
+      if (mounted) {
+        setState(() {
+          currentScore += earnedScore;
+          highestScore = (data['highest_score'] as int?) ?? highestScore;
+          achievementCount = (data['achievement_count'] as int?) ?? achievementCount;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error recording score: $e");
+      if (mounted) {
+        await _showTopSnackBar("Level cleared, but score sync failed.");
+      }
+    } finally {
+      _isSubmittingLevel = false;
+      if (mounted) {
+        setState(() {});
+      }
+    }
+
+    if (!mounted) return;
+
+    await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFFB2B9D1),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.black, width: 3)),
         title: Text("LEVEL COMPLETE!", textAlign: TextAlign.center, style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold)),
-        content: Text("You've cleared Level $currentLevel!", textAlign: TextAlign.center, style: GoogleFonts.pixelifySans()),
+        content: Text(
+          "You've cleared Level $currentLevel!\nScore: $currentScore\nAchievements: $achievementCount",
+          textAlign: TextAlign.center,
+          style: GoogleFonts.pixelifySans(),
+        ),
         actions: [
           Center(
             child: _buildButton("Next Level", () {
@@ -381,40 +483,311 @@ class _GamePageState extends State<GamePage> {
     );
   }
 
+  Future<void> _showTopSnackBar(String message) async {
+    _topSnackBarTimer?.cancel();
+    _topSnackBarMessage = message;
+
+    if (_topSnackBarEntry == null) {
+      final animation = CurvedAnimation(
+        parent: _topSnackBarController,
+        curve: Curves.easeOutBack,
+        reverseCurve: Curves.easeIn,
+      );
+
+      _topSnackBarEntry = OverlayEntry(
+        builder: (context) => Positioned(
+          top: MediaQuery.of(context).padding.top + 12,
+          left: 16,
+          right: 16,
+          child: IgnorePointer(
+            child: AnimatedBuilder(
+              animation: animation,
+              builder: (context, child) {
+                final offsetY = (-70 * (1 - animation.value)).clamp(-70, 0).toDouble();
+                return Opacity(
+                  opacity: animation.value.clamp(0, 1),
+                  child: Transform.translate(
+                    offset: Offset(0, offsetY),
+                    child: child,
+                  ),
+                );
+              },
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFB2B9D1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.black, width: 2),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    _topSnackBarMessage,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.pixelifySans(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      Overlay.of(context).insert(_topSnackBarEntry!);
+    } else {
+      _topSnackBarEntry!.markNeedsBuild();
+    }
+
+    await _topSnackBarController.forward(from: 0);
+    _topSnackBarTimer = Timer(const Duration(milliseconds: 650), () async {
+      await _topSnackBarController.reverse();
+      _topSnackBarEntry?.remove();
+      _topSnackBarEntry = null;
+    });
+  }
+
   void _handleGameOver(bool quit) {
     timer?.cancel();
-    if (mounted) setState(() => isGameOver = true);
+    final finalScore = currentScore;
+    if (mounted) {
+      setState(() {
+        isGameOver = true;
+        currentScore = 0;
+      });
+    }
     
     if (quit) {
       _showExitConfirmation();
       return;
     }
 
-    showDialog(
+    _showGameOverDialog(finalScore);
+  }
+
+  Future<void> _showGameOverDialog(int finalScore) async {
+    if (!mounted) return;
+
+    await showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFFB2B9D1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.black, width: 3)),
-        title: Text("GAME OVER!", textAlign: TextAlign.center, style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold)),
-        content: Text("You failed Level $currentLevel.\nProgress has been reset to Level 1.", textAlign: TextAlign.center, style: GoogleFonts.pixelifySans()),
-        actions: [
-          Center(
-            child: Column(
-              children: [
-                _buildButton("Retry (Level 1)", () {
-                  Navigator.pop(ctx);
-                  setState(() => currentLevel = 1);
-                  _startLevel();
-                }),
-                const SizedBox(height: 10),
-                _buildButton("Back to Menu", () {
-                  Navigator.pop(ctx);
-                  Navigator.pop(context);
-                }),
+      builder: (ctx) {
+        final screenWidth = MediaQuery.of(ctx).size.width;
+        final dialogWidth = (screenWidth * 0.92).clamp(320.0, 1100.0);
+
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Container(
+            width: dialogWidth,
+            constraints: const BoxConstraints(minHeight: 220),
+            padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFB7C9F1), Color(0xFF7E91B4)],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.redAccent, width: 4),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black54,
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
               ],
             ),
-          )
+            child: Stack(
+              children: [
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        highestScore.toString(),
+                        style: GoogleFonts.pixelifySans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFFFFD24D),
+                          shadows: const [
+                            Shadow(offset: Offset(1, 1), color: Colors.black),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        'Highest Score',
+                        style: GoogleFonts.pixelifySans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          shadows: const [
+                            Shadow(offset: Offset(1, 1), color: Colors.black),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 22),
+                    _buildOutlinedDialogText(
+                      'Game Over',
+                      fontSize: 54,
+                      fill: const Color(0xFFEE4B2B),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _buildGameOverAction(
+                          icon: Icons.replay_circle_filled_rounded,
+                          label: 'Retry',
+                          iconColor: const Color(0xFF8AE234),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            setState(() {
+                              currentLevel = 1;
+                              currentScore = 0;
+                            });
+                            _startLevel();
+                          },
+                        ),
+                        const SizedBox(width: 24),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              finalScore.toString(),
+                              style: GoogleFonts.pixelifySans(
+                                fontSize: 30,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFFFFD24D),
+                                shadows: const [
+                                  Shadow(offset: Offset(1, 1), color: Colors.black),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              'Total Score',
+                              style: GoogleFonts.pixelifySans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                shadows: const [
+                                  Shadow(offset: Offset(1, 1), color: Colors.black),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 24),
+                        _buildGameOverAction(
+                          icon: Icons.home_rounded,
+                          label: 'Home',
+                          iconColor: const Color(0xFF8AE234),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOutlinedDialogText(
+    String text, {
+    required double fontSize,
+    required Color fill,
+  }) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Text(
+          text,
+          style: GoogleFonts.pixelifySans(
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            foreground: Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 4
+              ..color = Colors.black,
+          ),
+        ),
+        Text(
+          text,
+          style: GoogleFonts.pixelifySans(
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            color: fill,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGameOverAction({
+    required IconData icon,
+    required String label,
+    required Color iconColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: iconColor,
+              border: Border.all(color: Colors.black, width: 2),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 6,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 34),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: GoogleFonts.pixelifySans(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              shadows: const [
+                Shadow(offset: Offset(1, 1), color: Colors.black),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -424,6 +797,9 @@ class _GamePageState extends State<GamePage> {
   void dispose() {
     timer?.cancel();
     pauseShuffleTimer?.cancel();
+    _topSnackBarTimer?.cancel();
+    _topSnackBarEntry?.remove();
+    _topSnackBarController.dispose();
     super.dispose();
   }
 
@@ -455,6 +831,11 @@ class _GamePageState extends State<GamePage> {
                 )
               : Stack(
                   children: [
+                    Positioned(
+                      left: 20,
+                      top: 20,
+                      child: _buildScoreBar(),
+                    ),
                     Positioned(
                       right: 20,
                       top: 20,
@@ -490,7 +871,7 @@ class _GamePageState extends State<GamePage> {
                             const SizedBox(width: 20),
                             _buildCenterUI(),
                             const SizedBox(width: 20),
-                            _buildGrid(userPattern, !isGameOver && !isPaused, "Your Grid", config),
+                            _buildGrid(userPattern, !isGameOver && !isPaused && !_isSubmittingLevel, "Your Grid", config),
                           ],
                         ),
                       ),
@@ -507,15 +888,67 @@ class _GamePageState extends State<GamePage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          "00:${secondsLeft.toString().padLeft(2, '0')}",
+          _formatTime(secondsLeft),
           style: GoogleFonts.pixelifySans(
               fontSize: 32,
               color: secondsLeft <= 5 ? Colors.red : Colors.white),
         ),
         const Icon(Icons.timer_outlined, color: Colors.black, size: 48),
         const SizedBox(height: 30),
-        _buildButton("Done", (isGameOver || isPaused) ? () {} : _checkWin),
+        _buildButton(
+          "Done",
+          (isGameOver || isPaused || _isSubmittingLevel)
+              ? () {}
+              : () => _checkWin(triggeredByDone: true),
+        ),
       ],
+    );
+  }
+
+  Widget _buildScoreBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.92),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Score",
+            style: GoogleFonts.pixelifySans(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.black54,
+            ),
+          ),
+          Text(
+            currentScore.toString(),
+            style: GoogleFonts.pixelifySans(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          Text(
+            "High Score: $highestScore",
+            style: GoogleFonts.pixelifySans(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -543,9 +976,7 @@ class _GamePageState extends State<GamePage> {
                   int index = r * config.cols + c;
                   return GestureDetector(
                     onTap: isInteractive
-                        ? () => setState(() {
-                              userPattern[index] = (userPattern[index] + 1) % config.colors;
-                            })
+                        ? () => _handleCellTap(index, config)
                         : null,
                     child: Container(
                       width: boxSize,

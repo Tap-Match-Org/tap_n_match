@@ -53,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final userId = data['user_id'];
+        final userId = (data['user_id'] as num).toInt();
         
         if (mounted) {
           Navigator.of(context).pushReplacementNamed(

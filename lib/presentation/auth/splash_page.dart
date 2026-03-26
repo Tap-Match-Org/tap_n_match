@@ -1,7 +1,6 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:tap_n_match/infrastructure/soundmanager.dart';
+import 'package:tap_n_match/core/soundmanager.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -10,9 +9,14 @@ class SplashPage extends StatefulWidget {
   State<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateMixin {
+class _SplashPageState extends State<SplashPage>
+    with TickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _opacityAnimation;
+  late AnimationController _loadingController;
+  late Animation<double> _loadingAnimation;
+  bool _isReadyToContinue = false;
+  bool _isNavigating = false;
 
   @override
   void initState() {
@@ -28,17 +32,38 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     );
 
     _controller.repeat(reverse: true);
+
+    _loadingController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed && mounted) {
+          setState(() {
+            _isReadyToContinue = true;
+          });
+        }
+      });
+
+    _loadingAnimation = CurvedAnimation(
+      parent: _loadingController,
+      curve: Curves.easeInOut,
+    );
+
+    _loadingController.forward();
   }
 
-  void _goToLogin() {
-    if (mounted) {
-      soundManager.playBgMusic();
-      Navigator.of(context).pushReplacementNamed('/login');
-    }
+  Future<void> _goToLogin() async {
+    if (!mounted || !_isReadyToContinue || _isNavigating) return;
+    _isNavigating = true;
+    final navigator = Navigator.of(context);
+    await soundManager.playBgMusic();
+    if (!mounted) return;
+    navigator.pushReplacementNamed('/login');
   }
 
   @override
   void dispose() {
+    _loadingController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -72,36 +97,44 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
                   children: [
                     _buildLogoGrid(context),
                     SizedBox(height: isLandscape ? screenHeight * 0.04 : 20),
-                    _buildOutlinedText('Tap & Match', isLandscape ? 45 : 55, const Color(0xFFFCA016)),
+                    _buildOutlinedText(
+                      'Tap & Match',
+                      isLandscape ? 45 : 55,
+                      const Color(0xFFFCA016),
+                    ),
                     const SizedBox(height: 4),
-                    _buildOutlinedText('The Color Game', isLandscape ? 18 : 20, const Color(0xFF20DEFF)),
+                    _buildOutlinedText(
+                      _isReadyToContinue ? 'Ready' : 'Loading...',
+                      isLandscape ? 18 : 20,
+                      const Color(0xFF20DEFF),
+                    ),
                     SizedBox(height: isLandscape ? screenHeight * 0.05 : 24),
-                    
                     SizedBox(
                       width: isLandscape ? screenWidth * 0.4 : screenWidth * 0.7,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: const LinearProgressIndicator(
-                          value: 1.0,
-                          minHeight: 8,
-                          backgroundColor: Colors.white24,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        child: AnimatedBuilder(
+                          animation: _loadingAnimation,
+                          builder: (context, child) {
+                            return LinearProgressIndicator(
+                              value: _loadingAnimation.value,
+                              minHeight: 8,
+                              backgroundColor: Colors.white24,
+                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                            );
+                          },
                         ),
                       ),
                     ),
-                    
-                    const SizedBox(height: 8),
-                    Text('100%', style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 12)),
-                    const SizedBox(height: 4),
-
+                    const SizedBox(height: 10),
                     FadeTransition(
                       opacity: _opacityAnimation,
-                      child: Text(
-                        'Tap to play',
-                        style: GoogleFonts.pixelifySans(
-                          color: const Color.fromARGB(255, 172, 160, 160),
-                          fontSize: 14,
-                          fontWeight: FontWeight.normal,
+                    child: Text(
+                      _isReadyToContinue ? 'Tap to Play' : 'Please wait',
+                      style: GoogleFonts.pixelifySans(
+                        color: const Color.fromARGB(255, 172, 160, 160),
+                        fontSize: 14,
+                        fontWeight: FontWeight.normal,
                         ),
                       ),
                     ),
@@ -143,16 +176,24 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   }
 
   Widget _buildLogoGrid(BuildContext context) {
-    double screenHeight = MediaQuery.of(context).size.height;
-    double screenWidth = MediaQuery.of(context).size.width;
-    bool isLandscape = screenWidth > screenHeight;
+    final double screenHeight = MediaQuery.of(context).size.height;
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final bool isLandscape = screenWidth > screenHeight;
     double sq = isLandscape ? screenHeight * 0.10 : screenHeight * 0.12;
     sq = sq.clamp(30.0, 50.0);
+
     final List<Color> colors = [
-      Colors.red, Colors.blue, Colors.greenAccent,
-      Colors.yellow, Colors.white, Colors.yellow,
-      Colors.greenAccent, Colors.red, Colors.blue,
+      Colors.red,
+      Colors.blue,
+      Colors.greenAccent,
+      Colors.yellow,
+      Colors.white,
+      Colors.yellow,
+      Colors.greenAccent,
+      Colors.red,
+      Colors.blue,
     ];
+
     return SizedBox(
       width: (sq * 3) + 20,
       child: GridView.builder(

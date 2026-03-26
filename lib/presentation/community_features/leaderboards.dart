@@ -14,15 +14,28 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
   int userId = 1; // Default fallback
   String selectedTheme = "#A9A9A9";
   bool isLoading = true;
+  bool _didInitialize = false;
+  List<Map<String, dynamic>> _players = [];
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_didInitialize) return;
+    _didInitialize = true;
+
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null && args.containsKey('user_id')) {
       userId = args['user_id'];
     }
-    _loadUserData();
+    _loadPageData();
+  }
+
+  Future<void> _loadPageData() async {
+    await _loadUserData();
+    await _loadLeaderboards();
+    if (mounted) {
+      setState(() => isLoading = false);
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -30,14 +43,33 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
       final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        setState(() {
-          selectedTheme = data['selected_theme'] ?? "#A9A9A9";
-          isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            selectedTheme = data['selected_theme'] ?? "#A9A9A9";
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error loading user data: $e');
-      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _loadLeaderboards() async {
+    try {
+      final response = await http.get(Uri.parse('http://localhost:8000/leaderboards'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final rawPlayers = (data['players'] as List<dynamic>? ?? []);
+        if (mounted) {
+          setState(() {
+            _players = rawPlayers
+                .map((player) => Map<String, dynamic>.from(player as Map))
+                .toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading leaderboard: $e');
     }
   }
 
@@ -120,6 +152,19 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
 
                     if (isLoading)
                       const Expanded(child: Center(child: CircularProgressIndicator()))
+                    else if (_players.isEmpty)
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            "No scores yet.",
+                            style: GoogleFonts.pixelifySans(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      )
                     else ...[
                       // TABLE HEADERS
                       Container(
@@ -130,10 +175,23 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
                           children: [
                             _buildHeaderText("RANKING"),
                             _buildHeaderText("PLAYER NAME"),
-                            _buildHeaderText("SCORE"),
+                            _buildHeaderText("HIGHEST SCORE"),
                             _buildHeaderText("HIGHEST LEVEL"),
                             _buildHeaderText("ACHIEVEMENTS"),
                           ],
+                        ),
+                      ),
+
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                        child: Text(
+                          'Tap a player row to open their public profile.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.pixelifySans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black54,
+                          ),
                         ),
                       ),
 
@@ -141,11 +199,25 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
                       Expanded(
                         child: ListView(
                           padding: const EdgeInsets.all(10),
-                          children: [
-                            _buildLeaderRow("1", "67taps", "9999", "1000", "100"),
-                            _buildLeaderRow("2", "Marlowww", "8000", "800", "67"),
-                            _buildLeaderRow("3", "Swight", "6000", "600", "50"),
-                          ],
+                          children: _players.map((player) {
+                            final rank = (player['rank'] ?? '').toString();
+                            final name = (player['username'] ?? '').toString();
+                            final highestScore = (player['score'] ?? 0).toString();
+                            final level = (player['highest_level'] ?? 0).toString();
+                            final ach = (player['achievement_count'] ?? 0).toString();
+                            final playerId = (player['user_id'] as num?)?.toInt() ?? 0;
+                            final isCurrentUser = playerId == userId;
+                            return _buildLeaderRow(
+                              context,
+                              playerId: playerId,
+                              rank: rank,
+                              name: name,
+                              highestScore: highestScore,
+                              level: level,
+                              ach: ach,
+                              isCurrentUser: isCurrentUser,
+                            );
+                          }).toList(),
                         ),
                       ),
                     ]
@@ -173,24 +245,45 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
     );
   }
 
-  Widget _buildLeaderRow(String rank, String name, String score, String level, String ach) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFAEC6FF),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black, width: 1.5),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildCellText(rank),
-          _buildCellText(name),
-          _buildCellText(score),
-          _buildCellText(level),
-          _buildCellText(ach),
-        ],
+  Widget _buildLeaderRow(
+    BuildContext context, {
+    required int playerId,
+    required String rank,
+    required String name,
+    required String highestScore,
+    required String level,
+    required String ach,
+    bool isCurrentUser = false,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        Navigator.of(context).pushNamed(
+          '/profile',
+          arguments: {
+            'user_id': playerId,
+            'public_profile': true,
+          },
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isCurrentUser ? const Color(0xFFFCA016).withOpacity(0.35) : const Color(0xFFAEC6FF),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.black, width: 1.5),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildCellText(rank),
+            _buildCellText(name),
+            _buildCellText(highestScore),
+            _buildCellText(level),
+            _buildCellText(ach),
+          ],
+        ),
       ),
     );
   }

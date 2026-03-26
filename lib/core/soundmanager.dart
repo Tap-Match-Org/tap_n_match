@@ -8,6 +8,7 @@ class SoundManager {
 
   final AudioPlayer _tapPlayer = AudioPlayer();
   final AudioPlayer _bgMusicPlayer = AudioPlayer();
+  bool _isBgMusicPlaying = false;
   
   // Settings
   bool _tapSoundEnabled = true;
@@ -22,7 +23,7 @@ class SoundManager {
 
   // Preload or cache settings could be added here
   final String _selectedTapSound = 'audio/tap_sounds/default_tapSounds.mp3';
-  String _selectedBgMusic = 'audio/background_music/default_bgMusic.mp3';
+  String _selectedBgMusic = 'audio/background_music/stal_default.mp3';
 
   Future<void> playTap() async {
     if (!_tapSoundEnabled) return;
@@ -36,11 +37,14 @@ class SoundManager {
 
   Future<void> playBgMusic() async {
     if (!_bgMusicEnabled) return;
+    if (_isBgMusicPlaying) return;
+    _isBgMusicPlaying = true;
     try {
       await _bgMusicPlayer.setVolume(_bgVolume);
       await _bgMusicPlayer.setReleaseMode(ReleaseMode.loop);
       await _bgMusicPlayer.play(AssetSource(_selectedBgMusic));
     } catch (e) {
+      _isBgMusicPlaying = false;
       debugPrint('Error playing background music: $e');
     }
   }
@@ -74,11 +78,13 @@ class SoundManager {
 
   Future<void> stopBgMusic() async {
     await _bgMusicPlayer.stop();
+    _isBgMusicPlaying = false;
   }
 
   void dispose() {
     _tapPlayer.dispose();
     _bgMusicPlayer.dispose();
+    _isBgMusicPlaying = false;
   }
 }
 

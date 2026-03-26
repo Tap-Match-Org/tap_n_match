@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:tap_n_match/infrastructure/soundmanager.dart';
+import 'package:tap_n_match/core/soundmanager.dart';
 
 class ThemePage extends StatefulWidget {
   const ThemePage({super.key});
@@ -11,7 +12,7 @@ class ThemePage extends StatefulWidget {
   State<ThemePage> createState() => _ThemePageState();
 }
 
-class _ThemePageState extends State<ThemePage> {
+class _ThemePageState extends State<ThemePage> with SingleTickerProviderStateMixin {
   int userId = 1; // Default fallback
   List<String> unlockedColors = ["#A9A9A9"];
   String selectedTheme = "#A9A9A9";
@@ -22,6 +23,10 @@ class _ThemePageState extends State<ThemePage> {
 
   String selectedMusic = "Default";
   List<String> unlockedMusic = ["Default"];
+  Timer? _topSnackBarTimer;
+  OverlayEntry? _topSnackBarEntry;
+  late final AnimationController _topSnackBarController;
+  String _topSnackBarMessage = "";
 
   final Map<String, String> colorNames = {
     "#A9A9A9": "Default",
@@ -36,7 +41,20 @@ class _ThemePageState extends State<ThemePage> {
   };
 
   @override
+  void initState() {
+    super.initState();
+    _topSnackBarController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+      reverseDuration: const Duration(milliseconds: 220),
+    );
+  }
+
+  @override
   void dispose() {
+    _topSnackBarTimer?.cancel();
+    _topSnackBarEntry?.remove();
+    _topSnackBarController.dispose();
     super.dispose();
   }
 
@@ -76,9 +94,7 @@ class _ThemePageState extends State<ThemePage> {
       if (response.statusCode == 200) {
         if (!mounted) return;
         setState(() => selectedTheme = hex);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Theme changed to ${colorNames[hex] ?? hex}!")),
-        );
+        _showTopSnackBar("Theme changed to ${colorNames[hex] ?? hex}!");
       }
     } catch (e) {
       debugPrint("Error selecting theme: $e");
@@ -92,21 +108,90 @@ class _ThemePageState extends State<ThemePage> {
     }
     if (!mounted) return;
     setState(() => selectedSound = soundName);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Tap Sound changed to $soundName!")),
-    );
+    _showTopSnackBar("Tap Sound changed to $soundName!");
   }
 
   Future<void> _selectMusic(String musicName) async {
     // For now, only "Default" is available. In the future, this can be synced with backend.
     if (musicName == "Default") {
-      await soundManager.setSelectedBgMusic('audio/background_music/default_bgMusic.mp3');
+      await soundManager.setSelectedBgMusic('audio/background_music/stal_default.mp3');
     }
     if (!mounted) return;
     setState(() => selectedMusic = musicName);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Music changed to $musicName!")),
-    );
+    _showTopSnackBar("Music changed to $musicName!");
+  }
+
+  Future<void> _showTopSnackBar(String message) async {
+    _topSnackBarTimer?.cancel();
+    _topSnackBarMessage = message;
+
+    if (_topSnackBarEntry == null) {
+      final animation = CurvedAnimation(
+        parent: _topSnackBarController,
+        curve: Curves.easeOutBack,
+        reverseCurve: Curves.easeIn,
+      );
+
+      _topSnackBarEntry = OverlayEntry(
+        builder: (context) => Positioned(
+          top: MediaQuery.of(context).padding.top + 12,
+          left: 16,
+          right: 16,
+          child: IgnorePointer(
+            child: AnimatedBuilder(
+              animation: animation,
+              builder: (context, child) {
+                final offsetY = (-70 * (1 - animation.value)).clamp(-70, 0).toDouble();
+                return Opacity(
+                  opacity: animation.value.clamp(0, 1),
+                  child: Transform.translate(
+                    offset: Offset(0, offsetY),
+                    child: child,
+                  ),
+                );
+              },
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFB2B9D1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.black, width: 2),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    _topSnackBarMessage,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.pixelifySans(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      Overlay.of(context).insert(_topSnackBarEntry!);
+    } else {
+      _topSnackBarEntry!.markNeedsBuild();
+    }
+
+    await _topSnackBarController.forward(from: 0);
+    _topSnackBarTimer = Timer(const Duration(milliseconds: 650), () async {
+      await _topSnackBarController.reverse();
+      _topSnackBarEntry?.remove();
+      _topSnackBarEntry = null;
+    });
   }
 
   @override
