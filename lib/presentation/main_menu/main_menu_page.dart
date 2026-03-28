@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/soundmanager.dart';
+import 'package:tap_n_match/core/theme_background.dart';
 
 class MainMenuPage extends StatefulWidget {
   const MainMenuPage({super.key});
@@ -23,6 +24,7 @@ class _MainMenuPageState extends State<MainMenuPage>
   bool challengeCompletedToday = false;
   late final AnimationController _menuController;
   bool _didInitialize = false;
+  int _claimableRewardCount = 0;
 
   @override
   void initState() {
@@ -65,6 +67,7 @@ class _MainMenuPageState extends State<MainMenuPage>
           final String? lastChallengeDate = data['last_challenge_date'];
           final String today = DateTime.now().toIso8601String().split('T')[0];
           challengeCompletedToday = (lastChallengeDate == today);
+          _claimableRewardCount = data['claimable_reward_count'] as int? ?? 0;
         });
       }
     } catch (e) {
@@ -277,7 +280,7 @@ class _MainMenuPageState extends State<MainMenuPage>
 
     if (!mounted) return;
 
-    if (route == '/theme') {
+    if (route == '/theme' || route == '/achievements') {
       await _loadUserData();
     }
   }
@@ -556,7 +559,13 @@ class _MainMenuPageState extends State<MainMenuPage>
   }
 
   // --- SIDEBAR ICON HELPER ---
-  Widget _buildSidebarIcon(BuildContext context, IconData icon, String route, bool isLandscape) {
+  Widget _buildSidebarIcon(
+    BuildContext context,
+    IconData icon,
+    String route,
+    bool isLandscape, {
+    int badgeCount = 0,
+  }) {
     final style = _sidebarStyleForRoute(route);
     final double tileSize = isLandscape ? 58 : 64;
     final double iconSize = isLandscape ? 24 : 27;
@@ -570,76 +579,98 @@ class _MainMenuPageState extends State<MainMenuPage>
 
         return Transform.translate(
           offset: Offset(0, bob),
-          child: GestureDetector(
-            onTap: () => _openSidebarRoute(route),
-            child: Container(
-              width: tileSize,
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: style.colors,
-                ),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.black, width: 2.4),
-                boxShadow: [
-                  BoxShadow(
-                    color: style.colors.first.withOpacity(glowStrength),
-                    blurRadius: 14,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(0.45),
-                      Colors.white.withOpacity(0.08),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              GestureDetector(
+                onTap: () => _openSidebarRoute(route),
+                child: Container(
+                  width: tileSize,
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: style.colors,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.black, width: 2.4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: style.colors.first.withOpacity(glowStrength),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
+                      ),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.black.withOpacity(0.35), width: 1.2),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: iconSize + 16,
-                      height: iconSize + 16,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.30),
-                        border: Border.all(color: Colors.black.withOpacity(0.6), width: 1.4),
-                      ),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Icon(icon, color: Colors.black.withOpacity(0.70), size: iconSize + 3),
-                          Icon(icon, color: Colors.white, size: iconSize),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(0.45),
+                          Colors.white.withOpacity(0.08),
                         ],
                       ),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.black.withOpacity(0.35), width: 1.2),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      style.label,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.pixelifySans(
-                        fontSize: isLandscape ? 8.5 : 9.5,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                        shadows: const [
-                          Shadow(offset: Offset(1, 1), color: Colors.white70),
-                        ],
-                      ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: iconSize + 16,
+                          height: iconSize + 16,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.30),
+                            border: Border.all(color: Colors.black.withOpacity(0.6), width: 1.4),
+                          ),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Icon(icon, color: Colors.black.withOpacity(0.70), size: iconSize + 3),
+                              Icon(icon, color: Colors.white, size: iconSize),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          style.label,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.pixelifySans(
+                            fontSize: isLandscape ? 8.5 : 9.5,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                            shadows: const [
+                              Shadow(offset: Offset(1, 1), color: Colors.white70),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              if (badgeCount > 0)
+                Positioned(
+                  right: -6,
+                  top: -6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    child: Text(
+                      badgeCount > 9 ? '9+' : badgeCount.toString(),
+                      style: GoogleFonts.pixelifySans(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
           ),
         );
       },
@@ -652,22 +683,13 @@ class _MainMenuPageState extends State<MainMenuPage>
     final double screenWidth = MediaQuery.of(context).size.width;
     final bool isLandscape = screenWidth > screenHeight;
 
-    Color themeColor = Color(int.parse(selectedTheme.replaceFirst('#', '0xFF')));
+    final themeColor = parseThemeColor(selectedTheme);
 
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.center,
-            radius: 1.2,
-            colors: [
-              themeColor.withOpacity(0.8),
-              themeColor.withOpacity(0.4),
-            ],
-          ),
-        ),
+        decoration: buildThemeDecoration(selectedTheme),
         child: Stack(
           children: [
             // 1. SIDEBAR ICONS (Top Left)
@@ -678,7 +700,13 @@ class _MainMenuPageState extends State<MainMenuPage>
                 children: [
                   _buildSidebarIcon(context, Icons.account_circle, '/profile', isLandscape),
                   const SizedBox(height: 15),
-                  _buildSidebarIcon(context, Icons.emoji_events, '/achievements', isLandscape),
+                  _buildSidebarIcon(
+                    context,
+                    Icons.emoji_events,
+                    '/achievements',
+                    isLandscape,
+                    badgeCount: _claimableRewardCount,
+                  ),
                   const SizedBox(height: 15),
                   _buildSidebarIcon(context, Icons.leaderboard, '/leaderboards', isLandscape),
                   const SizedBox(height: 15),

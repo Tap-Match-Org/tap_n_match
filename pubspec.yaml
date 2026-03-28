@@ -28,4 +28,9 @@ flutter:
 
   assets:
     - assets/audio/tap_sounds/default_tapSounds.mp3
+    - assets/audio/tap_sounds/genshin_tap_sound.mp3
+    - assets/audio/tap_sounds/minecraft_tap_sound.mp3
     - assets/audio/background_music/stal_default.mp3
+    - assets/audio/background_music/genshin_bgMusic.mp3
+    - assets/audio/background_music/minecraft_bgMusic.mp3
+    - assets/background_color/minecraft_bgColor.jpg

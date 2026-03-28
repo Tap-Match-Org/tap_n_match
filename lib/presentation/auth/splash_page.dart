@@ -15,6 +15,8 @@ class _SplashPageState extends State<SplashPage>
   late Animation<double> _opacityAnimation;
   late AnimationController _loadingController;
   late Animation<double> _loadingAnimation;
+  late AnimationController _shimmerController;
+  late Animation<double> _shimmerAnimation;
   bool _isReadyToContinue = false;
   bool _isNavigating = false;
 
@@ -50,6 +52,15 @@ class _SplashPageState extends State<SplashPage>
     );
 
     _loadingController.forward();
+
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+
+    _shimmerAnimation = Tween<double>(begin: -1.0, end: 2.0).animate(
+      CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
+    );
   }
 
   Future<void> _goToLogin() async {
@@ -63,6 +74,7 @@ class _SplashPageState extends State<SplashPage>
 
   @override
   void dispose() {
+    _shimmerController.dispose();
     _loadingController.dispose();
     _controller.dispose();
     super.dispose();
@@ -95,12 +107,14 @@ class _SplashPageState extends State<SplashPage>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildLogoGrid(context),
+                    _buildShimmerEffect(_buildLogoGrid(context)),
                     SizedBox(height: isLandscape ? screenHeight * 0.04 : 20),
-                    _buildOutlinedText(
-                      'Tap & Match',
-                      isLandscape ? 45 : 55,
-                      const Color(0xFFFCA016),
+                    _buildShimmerEffect(
+                      _buildOutlinedText(
+                        'Tap & Match',
+                        isLandscape ? 45 : 55,
+                        const Color(0xFFFCA016),
+                      ),
                     ),
                     const SizedBox(height: 4),
                     _buildOutlinedText(
@@ -145,6 +159,34 @@ class _SplashPageState extends State<SplashPage>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildShimmerEffect(Widget child) {
+    return AnimatedBuilder(
+      animation: _shimmerAnimation,
+      builder: (context, child) {
+        return ShaderMask(
+          blendMode: BlendMode.srcATop,
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withOpacity(0.0),
+                Colors.white.withOpacity(0.3),
+                Colors.white.withOpacity(0.8),
+                Colors.white.withOpacity(0.3),
+                Colors.white.withOpacity(0.0),
+              ],
+              stops: const [0.1, 0.4, 0.5, 0.6, 0.9],
+              transform: _SlidingGradientTransform(offset: _shimmerAnimation.value),
+            ).createShader(bounds);
+          },
+          child: child,
+        );
+      },
+      child: child,
     );
   }
 
@@ -218,3 +260,17 @@ class _SplashPageState extends State<SplashPage>
     );
   }
 }
+
+class _SlidingGradientTransform extends GradientTransform {
+  const _SlidingGradientTransform({
+    required this.offset,
+  });
+
+  final double offset;
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+    return Matrix4.translationValues(bounds.width * offset, 0.0, 0.0);
+  }
+}
+

@@ -20,9 +20,10 @@ class SoundManager {
   bool get bgMusicEnabled => _bgMusicEnabled;
   double get tapVolume => _tapVolume;
   double get bgVolume => _bgVolume;
+  String get selectedTapSound => _selectedTapSound;
 
   // Preload or cache settings could be added here
-  final String _selectedTapSound = 'audio/tap_sounds/default_tapSounds.mp3';
+  String _selectedTapSound = 'audio/tap_sounds/default_tapSounds.mp3';
   String _selectedBgMusic = 'audio/background_music/stal_default.mp3';
 
   Future<void> playTap() async {
@@ -58,7 +59,7 @@ class SoundManager {
     if (enabled) {
       await playBgMusic();
     } else {
-      await _bgMusicPlayer.stop();
+      await stopBgMusic();
     }
   }
 
@@ -73,7 +74,16 @@ class SoundManager {
   }
 
   Future<void> setSelectedBgMusic(String assetPath) async {
+    final wasPlaying = _isBgMusicPlaying;
     _selectedBgMusic = assetPath;
+    if (wasPlaying) {
+      await stopBgMusic();
+      await playBgMusic();
+    }
+  }
+
+  Future<void> setSelectedTapSound(String assetPath) async {
+    _selectedTapSound = assetPath;
   }
 
   Future<void> stopBgMusic() async {

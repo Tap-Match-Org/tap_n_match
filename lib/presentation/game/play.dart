@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/soundmanager.dart';
+import 'package:tap_n_match/core/theme_background.dart';
 
 class GamePage extends StatefulWidget {
   const GamePage({super.key});
@@ -805,17 +806,17 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    Color themeColor = Color(int.parse(selectedTheme.replaceFirst('#', '0xFF')));
     final config = _getDifficultyConfig(currentLevel);
 
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [themeColor.withOpacity(0.8), themeColor.withOpacity(0.5)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
+        decoration: buildThemeDecoration(
+          selectedTheme,
+          radial: false,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          opacityStart: 0.8,
+          opacityEnd: 0.5,
         ),
         child: SafeArea(
           child: _isLoading

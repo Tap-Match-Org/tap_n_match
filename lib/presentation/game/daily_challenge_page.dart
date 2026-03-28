@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/core/theme_background.dart';
 
 class DailyChallengePage extends StatefulWidget {
   const DailyChallengePage({super.key});
@@ -116,7 +117,6 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
     }, // Day 7 - Frame (4 colors)
   ];
 
-  bool _isCheckingAttempts = true;
   bool _hasCheckedAttempts = false;
   int _attempts = 0;
 
@@ -143,31 +143,27 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
           final userResponse = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
           if (userResponse.statusCode == 200) {
             final userData = jsonDecode(userResponse.body);
-            if (mounted) {
-              setState(() {
-                _isCheckingAttempts = false;
-                selectedTheme = userData['selected_theme'] ?? "#A9A9A9";
-              });
+              if (mounted) {
+                setState(() {
+                  selectedTheme = userData['selected_theme'] ?? "#A9A9A9";
+                });
               _startTimer();
             }
           } else {
-            if (mounted) {
-              setState(() => _isCheckingAttempts = false);
-              _startTimer();
-            }
-          }
+        if (mounted) {
+          _startTimer();
+        }
+      }
         }
       } else {
         // Fallback if backend fails
         if (mounted) {
-          setState(() => _isCheckingAttempts = false);
           _startTimer();
         }
       }
     } catch (e) {
       debugPrint("Error checking attempts: $e");
       if (mounted) {
-        setState(() => _isCheckingAttempts = false);
         _startTimer();
       }
     }
@@ -395,7 +391,6 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
       _secondsLeft = timeLimit;
       _isGameOver = false;
       _hasCheckedAttempts = false; 
-      _isCheckingAttempts = true;
     });
     _checkAndRecordAttempt();
   }
@@ -484,18 +479,15 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
 
   @override
   Widget build(BuildContext context) {
-    Color themeColor = Color(int.parse(selectedTheme.replaceFirst('#', '0xFF')));
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              themeColor.withOpacity(0.8),
-              themeColor.withOpacity(0.5),
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
+        decoration: buildThemeDecoration(
+          selectedTheme,
+          radial: false,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          opacityStart: 0.8,
+          opacityEnd: 0.5,
         ),
         child: Stack(
           children: [

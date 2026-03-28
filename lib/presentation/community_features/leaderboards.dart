@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/core/theme_background.dart';
 
 class LeaderboardsPage extends StatefulWidget {
   const LeaderboardsPage({super.key});
@@ -76,22 +77,12 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
   @override
   Widget build(BuildContext context) {
     final bool isLandscape = MediaQuery.of(context).size.width > MediaQuery.of(context).size.height;
-    Color themeColor = Color(int.parse(selectedTheme.replaceFirst('#', '0xFF')));
 
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.center,
-            radius: 1.2,
-            colors: [
-              themeColor.withOpacity(0.8),
-              themeColor.withOpacity(0.4),
-            ],
-          ),
-        ),
+        decoration: buildThemeDecoration(selectedTheme),
         child: Stack(
           children: [
             // BACK BUTTON
@@ -206,10 +197,12 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
                             final level = (player['highest_level'] ?? 0).toString();
                             final ach = (player['achievement_count'] ?? 0).toString();
                             final playerId = (player['user_id'] as num?)?.toInt() ?? 0;
+                            final playerTheme = (player['selected_theme'] ?? '#A9A9A9').toString();
                             final isCurrentUser = playerId == userId;
                             return _buildLeaderRow(
                               context,
                               playerId: playerId,
+                              selectedTheme: playerTheme,
                               rank: rank,
                               name: name,
                               highestScore: highestScore,
@@ -248,6 +241,7 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
   Widget _buildLeaderRow(
     BuildContext context, {
     required int playerId,
+    required String selectedTheme,
     required String rank,
     required String name,
     required String highestScore,
@@ -263,6 +257,7 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
           arguments: {
             'user_id': playerId,
             'public_profile': true,
+            'initial_selected_theme': selectedTheme,
           },
         );
       },

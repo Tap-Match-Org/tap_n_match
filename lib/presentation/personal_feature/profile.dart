@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:tap_n_match/core/theme_background.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -58,6 +59,10 @@ class _ProfilePageState extends State<ProfilePage> {
     if (args != null && args.containsKey('user_id')) {
       userId = args['user_id'];
     }
+    final initialSelectedTheme = (args?['initial_selected_theme'] as String?)?.trim();
+    if (initialSelectedTheme != null && initialSelectedTheme.isNotEmpty) {
+      selectedTheme = initialSelectedTheme;
+    }
     isPublicProfile = args != null && args['public_profile'] == true;
     _loadProfileData();
   }
@@ -94,7 +99,14 @@ class _ProfilePageState extends State<ProfilePage> {
           username = (userData['username'] as String?) ?? 'Player';
           email = isPublicProfile ? '' : (userData['email'] as String?) ?? '';
           selectedTheme = (userData['selected_theme'] as String?) ?? "#A9A9A9";
-          unlockedThemesRaw = (userData['unlocked_themes'] as String?) ?? '';
+          
+          final themes = userData['unlocked_themes'];
+          if (themes is List) {
+            unlockedThemesRaw = themes.join(',');
+          } else {
+            unlockedThemesRaw = (themes as String?) ?? '';
+          }
+
           lastUsernameChangeDate = isPublicProfile
               ? null
               : userData['last_username_change_date'] as String?;
@@ -151,14 +163,6 @@ class _ProfilePageState extends State<ProfilePage> {
       return DateFormat('MMM d, y').format(parsed);
     } catch (_) {
       return rawDate;
-    }
-  }
-
-  Color _parseThemeColor(String hex) {
-    try {
-      return Color(int.parse(hex.replaceFirst('#', '0xFF')));
-    } catch (_) {
-      return const Color(0xFFA9A9A9);
     }
   }
 
@@ -1282,22 +1286,13 @@ class _ProfilePageState extends State<ProfilePage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final isLandscape = screenWidth > screenHeight;
-    final themeColor = _parseThemeColor(selectedTheme);
+    final themeColor = parseThemeColor(selectedTheme);
 
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.center,
-            radius: 1.2,
-            colors: [
-              themeColor.withOpacity(0.82),
-              themeColor.withOpacity(0.45),
-            ],
-          ),
-        ),
+        decoration: buildThemeDecoration(selectedTheme),
         child: SafeArea(
           child: Stack(
             children: [
