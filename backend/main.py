@@ -1319,3 +1319,24 @@ async def get_admin_stats():
         "banned_users": banned_users,
         "pending_reports": pending_reports
     }
+
+class BanRequest(BaseModel):
+    reason: str
+
+@app.put("/admin/users/{user_id}/ban", dependencies=[Depends(verify_admin)])
+async def ban_user(user_id: int, request: BanRequest):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", (request.reason, user_id))
+    conn.commit()
+    conn.close()
+    return {"message": f"User {user_id} banned successfully."}
+
+@app.put("/admin/users/{user_id}/unban", dependencies=[Depends(verify_admin)])
+async def unban_user(user_id: int):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET is_banned = 0, ban_reason = NULL WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    return {"message": f"User {user_id} unbanned successfully."}
