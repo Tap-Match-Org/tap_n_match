@@ -1350,3 +1350,122 @@ async def unban_user(user_id: int):
     conn.commit()
     conn.close()
     return {"message": f"User {user_id} unbanned successfully."}
+
+class AppealRequest(BaseModel):
+    user_id: int
+    appeal_text: str
+
+@app.post("/appeals")
+async def submit_appeal(request: AppealRequest):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO appeals (user_id, appeal_text, status, timestamp) VALUES (?, ?, 'Pending', ?)",
+        (request.user_id, request.appeal_text, str(date.today()))
+    )
+    conn.commit()
+    appeal_id = cursor.lastrowid
+    conn.close()
+    return {"appeal_id": appeal_id, "message": "Appeal submitted successfully."}
+
+@app.get("/admin/appeals", dependencies=[Depends(verify_admin)])
+async def get_appeals():
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    appeals = cursor.execute(
+        "SELECT id, user_id, appeal_text, status, timestamp FROM appeals ORDER BY timestamp DESC"
+    ).fetchall()
+    conn.close()
+    return [
+        {"id": a[0], "user_id": a[1], "appeal_text": a[2], "status": a[3], "timestamp": a[4]}
+        for a in appeals
+    ]
+
+@app.put("/admin/appeals/{appeal_id}", dependencies=[Depends(verify_admin)])
+async def update_appeal_status(appeal_id: int, status: str):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE appeals SET status = ? WHERE id = ?", (status, appeal_id))
+    conn.commit()
+    conn.close()
+    return {"message": f"Appeal {appeal_id} status updated to {status}."}
+
+class ReportRequest(BaseModel):
+    reporter_id: int
+    reported_id: int
+    reason: str
+
+@app.post("/reports")
+async def submit_report(request: ReportRequest):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO reports (reporter_id, reported_id, reason, timestamp, status) VALUES (?, ?, ?, ?, 'Pending')",
+        (request.reporter_id, request.reported_id, request.reason, str(date.today()))
+    )
+    conn.commit()
+    report_id = cursor.lastrowid
+    conn.close()
+    return {"report_id": report_id, "message": "Report submitted successfully."}
+
+@app.get("/admin/reports", dependencies=[Depends(verify_admin)])
+async def get_reports():
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    reports = cursor.execute(
+        "SELECT id, reporter_id, reported_id, reason, timestamp, status FROM reports ORDER BY timestamp DESC"
+    ).fetchall()
+    conn.close()
+    return [
+        {"id": r[0], "reporter_id": r[1], "reported_id": r[2], "reason": r[3], "timestamp": r[4], "status": r[5]}
+        for r in reports
+    ]
+
+@app.put("/admin/reports/{report_id}", dependencies=[Depends(verify_admin)])
+async def update_report_status(report_id: int, status: str):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE reports SET status = ? WHERE id = ?", (status, report_id))
+    conn.commit()
+    conn.close()
+    return {"message": f"Report {report_id} status updated to {status}."}
+
+class SupportTicketRequest(BaseModel):
+    user_id: int
+    type: str
+    message: str
+
+@app.post("/support/tickets")
+async def submit_support_ticket(request: SupportTicketRequest):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO support_tickets (user_id, type, message, status, timestamp) VALUES (?, ?, ?, 'Open', ?)",
+        (request.user_id, request.type, request.message, str(date.today()))
+    )
+    conn.commit()
+    ticket_id = cursor.lastrowid
+    conn.close()
+    return {"ticket_id": ticket_id, "message": "Support ticket submitted successfully."}
+
+@app.get("/admin/support/tickets", dependencies=[Depends(verify_admin)])
+async def get_support_tickets():
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    tickets = cursor.execute(
+        "SELECT id, user_id, type, message, status, timestamp FROM support_tickets ORDER BY timestamp DESC"
+    ).fetchall()
+    conn.close()
+    return [
+        {"id": t[0], "user_id": t[1], "type": t[2], "message": t[3], "status": t[4], "timestamp": t[5]}
+        for t in tickets
+    ]
+
+@app.put("/admin/support/tickets/{ticket_id}", dependencies=[Depends(verify_admin)])
+async def update_support_ticket_status(ticket_id: int, status: str):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE support_tickets SET status = ? WHERE id = ?", (status, ticket_id))
+    conn.commit()
+    conn.close()
+    return {"message": f"Support ticket {ticket_id} status updated to {status}."}

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class BannedPage extends StatelessWidget {
   final String? reason;
@@ -14,7 +13,7 @@ class BannedPage extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(32.0),
           child: Column(
-            mainAxisAlignment: MainValueAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(
                 Icons.gavel_rounded,
@@ -60,15 +59,30 @@ class BannedPage extends StatelessWidget {
               ],
               const SizedBox(height: 48),
               ElevatedButton(
-                onPressed: () async {
-                  final Uri emailLaunchUri = Uri(
-                    scheme: 'mailto',
-                    path: 'support@tapnmatch.com',
-                    query: 'subject=Appeal Account Suspension',
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) => AlertDialog(
+                      title: const Text("Submit an Appeal"),
+                      content: const Text(
+                        "Our support team will review your appeal within 48 hours. Please provide details about why you believe this suspension was made in error.",
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text("Cancel"),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            // Navigate to appeal submission form
+                            Navigator.of(context).pushNamed('/appeal');
+                          },
+                          child: const Text("Submit Appeal"),
+                        ),
+                      ],
+                    ),
                   );
-                  if (await canLaunchUrl(emailLaunchUri)) {
-                    await launchUrl(emailLaunchUri);
-                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white10,

@@ -922,14 +922,35 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          username,
-          style: GoogleFonts.pixelifySans(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-            shadows: const [Shadow(offset: Offset(1, 1), color: Colors.white70)],
-          ),
+        Row(
+          children: [
+            Text(
+              username,
+              style: GoogleFonts.pixelifySans(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+                shadows: const [Shadow(offset: Offset(1, 1), color: Colors.white70)],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: themeColor.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: themeColor, width: 1.5),
+              ),
+              child: Text(
+                'ID: $userId',
+                style: GoogleFonts.pixelifySans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 6),
         Text(

@@ -943,6 +943,42 @@ class _MainMenuPageState extends State<MainMenuPage>
                 ),
               ),
             ),
+
+            // 4. SUPPORT BUTTON (Bottom Right)
+            Positioned(
+              right: 20,
+              bottom: 20,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pushNamed(
+                  '/support',
+                  arguments: {
+                    'user_id': userId,
+                    'selected_theme': selectedTheme,
+                  },
+                ),
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4FB3D9),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.black, width: 2.5),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 8,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.help_outline_rounded,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
