@@ -690,8 +690,9 @@ async def register(request: RegisterRequest):
 @app.post("/login")
 async def login(request: LoginRequest):
     conn = sqlite3.connect("users.db")
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username FROM users WHERE username = ? AND password = ?", 
+    cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", 
                    (request.username, request.password))
     user = cursor.fetchone()
     conn.close()
@@ -699,8 +700,17 @@ async def login(request: LoginRequest):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    if user["is_banned"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail={
+                "message": "Your account has been suspended.",
+                "reason": user["ban_reason"]
+            }
+        )
+
     # In a real app, return a token. For now, we return user info.
-    return {"message": "Login successful", "user_id": user[0], "username": user[1]}
+    return {"message": "Login successful", "user_id": user["id"], "username": user["username"]}
 
 # --- NEW: Get User Info for Theme/Streak Logic ---
 # --- NEW: Fix Database for Existing Users ---
