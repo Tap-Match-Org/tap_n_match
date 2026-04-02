@@ -1,10 +1,17 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import smtplib, random
 from email.message import EmailMessage
 import sqlite3
 from datetime import date, timedelta
+
+ADMIN_KEY = "tap_n_match_admin_2026" # Example hardcoded key
+
+async def verify_admin(x_admin_key: str = Header(...)):
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Invalid Admin Key")
+    return x_admin_key
 
 app = FastAPI()
 
@@ -1296,3 +1303,19 @@ async def mark_reward_seen(user_id: int, reward_id: str):
     
     conn.close()
     return {"status": "success"}
+
+@app.get("/admin/stats", dependencies=[Depends(verify_admin)])
+async def get_admin_stats():
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+
+    total_users = cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    banned_users = cursor.execute("SELECT COUNT(*) FROM users WHERE is_banned = 1").fetchone()[0]
+    pending_reports = cursor.execute("SELECT COUNT(*) FROM reports WHERE status = 'Pending'").fetchone()[0]
+
+    conn.close()
+    return {
+        "total_users": total_users,
+        "banned_users": banned_users,
+        "pending_reports": pending_reports
+    }
