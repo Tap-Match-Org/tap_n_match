@@ -58,6 +58,18 @@ class _MainMenuPageState extends State<MainMenuPage>
       final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        
+        if (data['is_banned'] == 1 || data['is_banned'] == true) {
+          if (mounted) {
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              '/banned', 
+              (route) => false,
+              arguments: {'reason': data['ban_reason']},
+            );
+          }
+          return;
+        }
+
         setState(() {
           userStreak = data['streak'] ?? 0;
           isNewbie = userStreak < 7;

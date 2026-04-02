@@ -7,13 +7,15 @@ import '../presentation/personal_feature/profile.dart';
 import '../presentation/personal_feature/achievement.dart';
 import '../presentation/community_features/leaderboards.dart';
 import '../presentation/personal_feature/theme.dart';
-import '../presentation/game/play.dart';
-import '../presentation/game/daily_challenge_page.dart';
+import '../presentation/auth/register_page.dart';
+import '../presentation/auth/banned_page.dart';
+import '../presentation/main_menu/main_menu_page.dart';
 
 class AppRoutes {
   static const splash = '/';
   static const login = '/login';
   static const register = '/register';
+  static const banned = '/banned';
   static const mainMenu = '/menu';
   static const profile = '/profile';
   static const achievements = '/achievements';
@@ -26,6 +28,10 @@ class AppRoutes {
     splash: (context) => const SplashPage(),
     login: (context) => const LoginPage(),
     register: (context) => const RegisterPage(),
+    banned: (context) {
+      final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+      return BannedPage(reason: args?['reason']);
+    },
     mainMenu: (context) => MainMenuPage(),
     profile: (context) => const ProfilePage(),
     achievements: (context) => const AchievementPage(),

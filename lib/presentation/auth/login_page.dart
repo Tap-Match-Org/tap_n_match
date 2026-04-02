@@ -61,6 +61,19 @@ class _LoginPageState extends State<LoginPage> {
             arguments: {'user_id': userId},
           );
         }
+      } else if (response.statusCode == 403) {
+        final errorData = jsonDecode(response.body);
+        final detail = errorData['detail'];
+        String? reason;
+        if (detail is Map) {
+          reason = detail['reason'];
+        }
+        if (mounted) {
+          Navigator.of(context).pushNamed(
+            '/banned',
+            arguments: {'reason': reason},
+          );
+        }
       } else {
         final errorData = jsonDecode(response.body);
         _showError(errorData['detail'] ?? 'Invalid username or password');
