@@ -30,7 +30,13 @@ flutter:
     - assets/audio/tap_sounds/default_tapSounds.mp3
     - assets/audio/tap_sounds/genshin_tap_sound.mp3
     - assets/audio/tap_sounds/minecraft_tap_sound.mp3
+    - assets/audio/tap_sounds/snowfall_tap_sound.mp3
+    - assets/audio/tap_sounds/harvest_moon _tapSound.mp3
     - assets/audio/background_music/stal_default.mp3
     - assets/audio/background_music/genshin_bgMusic.mp3
+    - assets/audio/background_music/harvestMoon.mp3
     - assets/audio/background_music/minecraft_bgMusic.mp3
-    - assets/background_color/minecraft_bgColor.jpg
+    - assets/audio/background_music/snowfall_bgMusic.mp3
+    - assets/background/minecraft_bgColor.jpg
+    - assets/background/harvest_moon_background.jpeg
+    - assets/background/genshin_background.jpeg

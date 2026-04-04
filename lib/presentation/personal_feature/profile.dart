@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -7,6 +8,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:tap_n_match/core/theme_background.dart';
+import 'package:tap_n_match/core/tutorial_overlay.dart';
+import 'package:tap_n_match/core/tutorial_progress.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -30,12 +33,20 @@ class _ProfilePageState extends State<ProfilePage> {
   int highestLevel = 0;
   int levelsCleared = 0;
   int achievementCount = 0;
+  int achievementTotalCount = 10;
   int boxesTapped = 0;
   int leaderboardRank = 0;
   int leaderboardTotalPlayers = 0;
   int availableThemesCount = 1;
   bool isLoading = true;
   bool _didInitialize = false;
+  bool _showTutorial = false;
+  bool _isSavingTutorial = false;
+  bool _tutorialQueued = false;
+  int _tutorialStepIndex = 0;
+  final GlobalKey _menuButtonKey = GlobalKey();
+  final GlobalKey _heroCardKey = GlobalKey();
+  final GlobalKey _achievementBarKey = GlobalKey();
 
   final Map<String, String> _themeNames = {
     "#A9A9A9": "Default",
@@ -76,11 +87,11 @@ class _ProfilePageState extends State<ProfilePage> {
       Map<String, dynamic>? userData;
       if (userResponse.statusCode == 200) {
         userData = jsonDecode(userResponse.body) as Map<String, dynamic>;
-        
+
         if (userData['is_banned'] == 1 || userData['is_banned'] == true) {
           if (mounted) {
             Navigator.of(context).pushNamedAndRemoveUntil(
-              '/banned', 
+              '/banned',
               (route) => false,
               arguments: {'reason': userData['ban_reason']},
             );
@@ -110,7 +121,7 @@ class _ProfilePageState extends State<ProfilePage> {
           username = (userData['username'] as String?) ?? 'Player';
           email = isPublicProfile ? '' : (userData['email'] as String?) ?? '';
           selectedTheme = (userData['selected_theme'] as String?) ?? "#A9A9A9";
-          
+
           final themes = userData['unlocked_themes'];
           if (themes is List) {
             unlockedThemesRaw = themes.join(',');
@@ -128,6 +139,8 @@ class _ProfilePageState extends State<ProfilePage> {
           highestLevel = (userData['highest_level'] as int?) ?? 0;
           levelsCleared = (userData['levels_cleared'] as int?) ?? 0;
           achievementCount = (userData['achievement_count'] as int?) ?? 0;
+          achievementTotalCount =
+              (userData['achievement_total_count'] as int?) ?? achievementTotalCount;
           boxesTapped = (userData['boxes_tapped'] as int?) ?? 0;
           availableThemesCount = _countAvailableThemes(unlockedThemesRaw);
         }
@@ -143,6 +156,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
         isLoading = false;
       });
+
+      if (userData != null) {
+        _queueTutorialIfNeeded(userData);
+      }
     } catch (e) {
       debugPrint('Error loading profile data: $e');
       if (mounted) {
@@ -238,12 +255,123 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  List<TutorialStep> get _tutorialSteps => [
+        TutorialStep(
+          targetKey: _menuButtonKey,
+          title: 'Profile Menu',
+          description:
+              'Tap this menu whenever you want to edit your picture, username, password, Gmail, reset your progress, or log out.',
+          cardPosition: TutorialCardPosition.bottomRight,
+        ),
+        TutorialStep(
+          targetKey: _heroCardKey,
+          title: 'Main Profile Card',
+          description:
+              'This card shows your avatar, player ID, best score, best level, current theme, and leaderboard rank.',
+          cardPosition: TutorialCardPosition.bottomCenter,
+        ),
+        TutorialStep(
+          targetKey: _achievementBarKey,
+          title: 'Progress Tracker',
+          description:
+              'This section tracks achievement progress. The profile screen below it also shows your taps, cleared levels, themes owned, and account details.',
+          cardPosition: TutorialCardPosition.topRight,
+        ),
+      ];
+
   String _extractErrorMessage(Object error) {
     final raw = error.toString();
     if (raw.startsWith('Exception: ')) {
       return raw.substring('Exception: '.length);
     }
     return raw;
+  }
+
+  void _queueTutorialIfNeeded(Map<String, dynamic> userData) {
+    if (isPublicProfile || _tutorialQueued || !hasPendingTutorial(userData, TutorialIds.profile)) {
+      return;
+    }
+
+    _tutorialQueued = true;
+    unawaited(_showTutorialWhenReady());
+  }
+
+  Future<void> _showTutorialWhenReady() async {
+    while (mounted) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+
+      if (_areTutorialTargetsReady()) {
+        setState(() {
+          _tutorialStepIndex = 0;
+          _showTutorial = true;
+        });
+        return;
+      }
+
+      // Force a new frame to ensure currentContext is updated
+      WidgetsBinding.instance.scheduleFrame();
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+  }
+
+  bool _areTutorialTargetsReady() {
+    final targets = [
+      _menuButtonKey,
+      _heroCardKey,
+      _achievementBarKey,
+    ];
+
+    for (final key in targets) {
+      final renderObject = key.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  void _showTutorialSaveError(Object error) {
+    _showSnack(
+      _extractErrorMessage(error),
+      color: Colors.redAccent,
+    );
+  }
+
+  Future<void> _finishTutorial() async {
+    if (_isSavingTutorial) return;
+
+    setState(() => _isSavingTutorial = true);
+    try {
+      await markTutorialComplete(
+        userId: userId,
+        tutorialId: TutorialIds.profile,
+      );
+    } catch (error) {
+      _showTutorialSaveError(error);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingTutorial = false;
+          _showTutorial = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleTutorialNext() async {
+    if (_tutorialStepIndex < _tutorialSteps.length - 1) {
+      setState(() => _tutorialStepIndex++);
+      return;
+    }
+
+    await _finishTutorial();
+  }
+
+  void _handleTutorialBack() {
+    if (_tutorialStepIndex == 0) return;
+    setState(() => _tutorialStepIndex--);
   }
 
   Future<void> _showEditMenu() async {
@@ -546,7 +674,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               ElevatedButton(
-                      onPressed: isSaving
+                onPressed: isSaving
                     ? null
                     : () async {
                         final value = controller.text.trim();
@@ -795,6 +923,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return GestureDetector(
       onTap: _showEditMenu,
       child: Container(
+        key: _menuButtonKey,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.25),
@@ -836,6 +965,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final bool hasRank = leaderboardRank > 0;
 
     return Container(
+      key: _heroCardKey,
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1024,9 +1154,11 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildAchievementBar() {
-    final progress = (achievementCount / 10).clamp(0.0, 1.0);
+    final totalAchievements = achievementTotalCount > 0 ? achievementTotalCount : 10;
+    final progress = (achievementCount / totalAchievements).clamp(0.0, 1.0);
 
     return Container(
+      key: _achievementBarKey,
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1049,7 +1181,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               Text(
-                '$achievementCount / 10',
+                '$achievementCount / $totalAchievements',
                 style: GoogleFonts.pixelifySans(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -1380,6 +1512,15 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
               ),
+              if (_showTutorial && !isLoading)
+                GuidedTutorialOverlay(
+                  steps: _tutorialSteps,
+                  currentIndex: _tutorialStepIndex,
+                  onNext: _handleTutorialNext,
+                  onBack: _handleTutorialBack,
+                  onSkip: _finishTutorial,
+                  isSaving: _isSavingTutorial,
+                ),
             ],
           ),
         ),

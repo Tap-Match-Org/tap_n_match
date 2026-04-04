@@ -7,6 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
+import 'package:tap_n_match/core/tutorial_overlay.dart';
+import 'package:tap_n_match/core/tutorial_progress.dart';
 
 class MainMenuPage extends StatefulWidget {
   const MainMenuPage({super.key});
@@ -20,11 +22,20 @@ class _MainMenuPageState extends State<MainMenuPage>
   int userId = 1; // Default fallback
   bool isNewbie = true;
   int userStreak = 0;
+  int completedDailyChallenges = 0;
   String selectedTheme = "#A9A9A9";
   bool challengeCompletedToday = false;
   late final AnimationController _menuController;
   bool _didInitialize = false;
   int _claimableRewardCount = 0;
+  bool _showTutorial = false;
+  bool _isSavingTutorial = false;
+  bool _tutorialQueued = false;
+  int _tutorialStepIndex = 0;
+  String? _activeTutorialId;
+  final GlobalKey _playButtonKey = GlobalKey();
+  final GlobalKey _dailyChallengePanelKey = GlobalKey();
+  final GlobalKey _dailyChallengeButtonKey = GlobalKey();
 
   @override
   void initState() {
@@ -57,7 +68,7 @@ class _MainMenuPageState extends State<MainMenuPage>
     try {
       final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         
         if (data['is_banned'] == 1 || data['is_banned'] == true) {
           if (mounted) {
@@ -72,7 +83,8 @@ class _MainMenuPageState extends State<MainMenuPage>
 
         setState(() {
           userStreak = data['streak'] ?? 0;
-          isNewbie = userStreak < 7;
+          completedDailyChallenges = data['completed_daily_challenges'] ?? 0;
+          isNewbie = completedDailyChallenges < 7;
           selectedTheme = data['selected_theme'] ?? "#A9A9A9";
           
           // Check if challenge was completed today
@@ -81,10 +93,166 @@ class _MainMenuPageState extends State<MainMenuPage>
           challengeCompletedToday = (lastChallengeDate == today);
           _claimableRewardCount = data['claimable_reward_count'] as int? ?? 0;
         });
+
+        _queueTutorialIfNeeded(data);
       }
     } catch (e) {
       debugPrint('Error loading user data: $e');
     }
+  }
+
+  List<TutorialStep> get _tutorialSteps {
+    if (_activeTutorialId == TutorialIds.welcome) {
+      return <TutorialStep>[
+        TutorialStep(
+          targetKey: _playButtonKey,
+          title: 'Welcome to Tap & Match!',
+          description: 'Tap Play to start the game.',
+          cardPosition: TutorialCardPosition.center,
+        ),
+      ];
+    }
+
+    return <TutorialStep>[
+      TutorialStep(
+        targetKey: _dailyChallengePanelKey,
+        title: 'Daily Challenge',
+        description:
+            'This panel shows today\'s Daily Challenge reward. Use it from the main menu when you want a special limited-time run.',
+        cardPosition: TutorialCardPosition.centerLeft,
+      ),
+      TutorialStep(
+        targetKey: _dailyChallengeButtonKey,
+        title: 'Only 2 Attempts',
+        description:
+            'You only get 2 attempts for each Daily Challenge, so use them carefully before tapping Play Now.',
+        cardPosition: TutorialCardPosition.bottomLeft,
+      ),
+      TutorialStep(
+        targetKey: _dailyChallengePanelKey,
+        title: '7-Day Daily Challenge',
+        description:
+            'The Daily Challenge cycle lasts for 7 days only. After that, the game moves on to the Weekly Challenge.',
+        cardPosition: TutorialCardPosition.topLeft,
+      ),
+    ];
+  }
+
+  void _queueTutorialIfNeeded(Map<String, dynamic> data) {
+    if (_tutorialQueued || _showTutorial) {
+      return;
+    }
+
+    if (hasPendingTutorial(data, TutorialIds.welcome)) {
+      _tutorialQueued = true;
+      _showTutorialWhenReady(TutorialIds.welcome);
+      return;
+    }
+
+    if (!hasPendingTutorial(data, TutorialIds.dailyChallenge)) {
+      return;
+    }
+
+    if (hasPendingTutorial(data, TutorialIds.play) || challengeCompletedToday) {
+      return;
+    }
+
+    _tutorialQueued = true;
+    _showTutorialWhenReady(TutorialIds.dailyChallenge);
+  }
+
+  void _showTutorialWhenReady(String tutorialId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      if (!_areTutorialTargetsReady(tutorialId)) {
+        // Wait 100ms and try again to avoid being stuck if no frames are scheduled
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) _showTutorialWhenReady(tutorialId);
+        });
+        return;
+      }
+
+      setState(() {
+        _activeTutorialId = tutorialId;
+        _tutorialStepIndex = 0;
+        _showTutorial = true;
+      });
+    });
+  }
+
+  bool _areTutorialTargetsReady(String tutorialId) {
+    final List<GlobalKey> targets;
+    switch (tutorialId) {
+      case TutorialIds.welcome:
+        targets = [_playButtonKey];
+        break;
+      case TutorialIds.dailyChallenge:
+      default:
+        targets = [
+          _dailyChallengePanelKey,
+          _dailyChallengeButtonKey,
+        ];
+        break;
+    }
+
+    for (final key in targets) {
+      final renderObject = key.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<void> _finishTutorial() async {
+    if (_isSavingTutorial || _activeTutorialId == null) return;
+
+    final tutorialId = _activeTutorialId!;
+
+    setState(() => _isSavingTutorial = true);
+    try {
+      await markTutorialComplete(
+        userId: userId,
+        tutorialId: tutorialId,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().replaceFirst('Exception: ', ''),
+            style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingTutorial = false;
+          _showTutorial = false;
+          _activeTutorialId = null;
+          _tutorialQueued = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleTutorialNext() async {
+    if (_tutorialStepIndex < _tutorialSteps.length - 1) {
+      setState(() => _tutorialStepIndex++);
+      return;
+    }
+
+    await _finishTutorial();
+  }
+
+  void _handleTutorialBack() {
+    if (_tutorialStepIndex == 0) return;
+    setState(() => _tutorialStepIndex--);
   }
 
   void _showSettingsDialog() {
@@ -229,10 +397,22 @@ class _MainMenuPageState extends State<MainMenuPage>
     {"color": "#00FFFF", "name": "Cyan"},
   ];
 
-  // Get current reward based on user streak
+  final List<Map<String, dynamic>> weeklyChallengesConfig = [
+    {"asset": "assets/background/harvest_moon_background.jpeg", "name": "Harvest Moon", "type": "theme"},
+    {"asset": "assets/background/genshin_background.jpeg", "name": "Genshin", "type": "theme"},
+  ];
+
+  // Get current reward based on user progress
   Map<String, dynamic> _getCurrentReward() {
-    int index = userStreak.clamp(0, 6);
-    return newbieDaysConfig[index];
+    if (isNewbie) {
+      int index = completedDailyChallenges.clamp(0, 6);
+      return newbieDaysConfig[index];
+    } else {
+      // Weekly challenges for veterans
+      // Day 8-14: Week 1, Day 15-21: Week 2, etc.
+      int weekIndex = ((completedDailyChallenges - 7) ~/ 7).clamp(0, weeklyChallengesConfig.length - 1);
+      return weeklyChallengesConfig[weekIndex];
+    }
   }
 
   ({String label, List<Color> colors, double phase}) _sidebarStyleForRoute(String route) {
@@ -394,6 +574,7 @@ class _MainMenuPageState extends State<MainMenuPage>
     required bool isLandscape,
     required Color themeColor,
     required VoidCallback onTap,
+    Key? tutorialKey,
   }) {
     return AnimatedBuilder(
       animation: _menuController,
@@ -414,6 +595,7 @@ class _MainMenuPageState extends State<MainMenuPage>
         return Transform.scale(
           scale: pulse,
           child: GestureDetector(
+            key: tutorialKey,
             onTap: onTap,
             child: Container(
               width: isLandscape ? 220 : 210,
@@ -764,6 +946,7 @@ class _MainMenuPageState extends State<MainMenuPage>
               bottom: 0,
               child: Center(
                 child: Container(
+                  key: _dailyChallengePanelKey,
                   width: isLandscape ? 142 : 150,
                   height: isLandscape ? 178 : 194,
                   decoration: BoxDecoration(
@@ -854,7 +1037,15 @@ class _MainMenuPageState extends State<MainMenuPage>
                                     width: 40,
                                     height: 40,
                                     decoration: BoxDecoration(
-                                      color: Color(int.parse(_getCurrentReward()["color"].replaceFirst('#', '0xFF'))),
+                                      color: _getCurrentReward().containsKey("color")
+                                          ? Color(int.parse(_getCurrentReward()["color"].replaceFirst('#', '0xFF')))
+                                          : Colors.grey[300],
+                                      image: _getCurrentReward().containsKey("asset")
+                                          ? DecorationImage(
+                                              image: AssetImage(_getCurrentReward()["asset"]),
+                                              fit: BoxFit.cover,
+                                            )
+                                          : null,
                                       borderRadius: BorderRadius.circular(9),
                                       border: Border.all(color: Colors.black, width: 2),
                                     ),
@@ -877,11 +1068,13 @@ class _MainMenuPageState extends State<MainMenuPage>
                                           'user_id': userId,
                                           'isNewbie': isNewbie,
                                           'streak': userStreak,
+                                          'completedChallenges': completedDailyChallenges,
                                         },
                                       );
                                       _loadUserData();
                                     },
                                     child: Container(
+                                      key: _dailyChallengeButtonKey,
                                       width: double.infinity,
                                       padding: const EdgeInsets.symmetric(vertical: 6),
                                       decoration: BoxDecoration(
@@ -924,10 +1117,15 @@ class _MainMenuPageState extends State<MainMenuPage>
                     _buildPlayButton(
                       isLandscape: isLandscape,
                       themeColor: themeColor,
-                      onTap: () => Navigator.of(context).pushNamed(
-                        '/game',
-                        arguments: {'user_id': userId},
-                      ),
+                      tutorialKey: _playButtonKey,
+                      onTap: () async {
+                        await Navigator.of(context).pushNamed(
+                          '/game',
+                          arguments: {'user_id': userId},
+                        );
+                        if (!mounted) return;
+                        await _loadUserData();
+                      },
                     ),
                     _buildExitButton(
                       isLandscape: isLandscape,
@@ -979,6 +1177,15 @@ class _MainMenuPageState extends State<MainMenuPage>
                 ),
               ),
             ),
+            if (_showTutorial)
+              GuidedTutorialOverlay(
+                steps: _tutorialSteps,
+                currentIndex: _tutorialStepIndex,
+                onNext: _handleTutorialNext,
+                onBack: _handleTutorialBack,
+                onSkip: _finishTutorial,
+                isSaving: _isSavingTutorial,
+              ),
           ],
         ),
       ),

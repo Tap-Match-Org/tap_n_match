@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/theme_background.dart';
+import 'package:tap_n_match/core/tutorial_overlay.dart';
+import 'package:tap_n_match/core/tutorial_progress.dart';
 import 'achievement_list.dart'; 
 
 class AchievementPage extends StatefulWidget {
@@ -23,6 +25,12 @@ class _AchievementPageState extends State<AchievementPage> {
   List<Map<String, dynamic>> _achievements = [];
   String? _claimingId;
   int _claimableRewardCount = 0;
+  bool _showTutorial = false;
+  bool _isSavingTutorial = false;
+  bool _tutorialQueued = false;
+  int _tutorialStepIndex = 0;
+  final GlobalKey _rewardSummaryKey = GlobalKey();
+  final GlobalKey _achievementListKey = GlobalKey();
 
   @override
   void didChangeDependencies() {
@@ -42,11 +50,12 @@ class _AchievementPageState extends State<AchievementPage> {
     try {
       final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         if (!mounted) return;
         setState(() {
           selectedTheme = data['selected_theme'] ?? _defaultAchievementTheme;
         });
+        _queueTutorialIfNeeded(data);
       }
     } catch (e) {
       debugPrint('Error loading user data: $e');
@@ -55,6 +64,105 @@ class _AchievementPageState extends State<AchievementPage> {
         setState(() => _isLoadingTheme = false);
       }
     }
+  }
+
+  List<TutorialStep> get _tutorialSteps => [
+        TutorialStep(
+          targetKey: _rewardSummaryKey,
+          title: 'Reward Summary',
+          description:
+              'This bar shows how many achievement rewards are ready to claim and whether you currently have anything waiting.',
+          cardPosition: TutorialCardPosition.topCenter,
+        ),
+        TutorialStep(
+          targetKey: _achievementListKey,
+          title: 'Achievement Rewards',
+          description:
+              'Scroll this list to review your progress. When an achievement unlocks, you can claim its reward directly from here.',
+          cardPosition: TutorialCardPosition.bottomCenter,
+        ),
+      ];
+
+  void _queueTutorialIfNeeded(Map<String, dynamic> data) {
+    if (_tutorialQueued || !hasPendingTutorial(data, TutorialIds.achievements)) {
+      return;
+    }
+
+    _tutorialQueued = true;
+    _showTutorialWhenReady();
+  }
+
+  void _showTutorialWhenReady() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      if (!_areTutorialTargetsReady()) {
+        WidgetsBinding.instance.scheduleFrame();
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) _showTutorialWhenReady();
+        });
+        return;
+      }
+
+      setState(() {
+        _tutorialStepIndex = 0;
+        _showTutorial = true;
+      });
+    });
+  }
+
+  bool _areTutorialTargetsReady() {
+    final targets = [
+      _rewardSummaryKey,
+      _achievementListKey,
+    ];
+
+    for (final key in targets) {
+      final renderObject = key.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<void> _finishTutorial() async {
+    if (_isSavingTutorial) return;
+
+    setState(() => _isSavingTutorial = true);
+    try {
+      await markTutorialComplete(
+        userId: userId,
+        tutorialId: TutorialIds.achievements,
+      );
+    } catch (error) {
+      _showSnack(
+        error.toString().replaceFirst('Exception: ', ''),
+        color: Colors.redAccent,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingTutorial = false;
+          _showTutorial = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleTutorialNext() async {
+    if (_tutorialStepIndex < _tutorialSteps.length - 1) {
+      setState(() => _tutorialStepIndex++);
+      return;
+    }
+
+    await _finishTutorial();
+  }
+
+  void _handleTutorialBack() {
+    if (_tutorialStepIndex == 0) return;
+    setState(() => _tutorialStepIndex--);
   }
 
   Future<void> _loadAchievements() async {
@@ -180,6 +288,7 @@ class _AchievementPageState extends State<AchievementPage> {
                       ),
                     ),
                     Padding(
+                      key: _rewardSummaryKey,
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       child: Row(
                         children: [
@@ -200,16 +309,28 @@ class _AchievementPageState extends State<AchievementPage> {
                       const Expanded(child: Center(child: CircularProgressIndicator()))
                     else
                       Expanded(
-                        child: AchievementList(
-                          achievements: _achievements,
-                          claimingId: _claimingId,
-                          onClaim: _claimAchievement,
+                        child: Container(
+                          key: _achievementListKey,
+                          child: AchievementList(
+                            achievements: _achievements,
+                            claimingId: _claimingId,
+                            onClaim: _claimAchievement,
+                          ),
                         ),
                       ),
                   ],
                 ),
               ),
             ),
+            if (_showTutorial)
+              GuidedTutorialOverlay(
+                steps: _tutorialSteps,
+                currentIndex: _tutorialStepIndex,
+                onNext: _handleTutorialNext,
+                onBack: _handleTutorialBack,
+                onSkip: _finishTutorial,
+                isSaving: _isSavingTutorial,
+              ),
           ],
         ),
       ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 
 class DailyChallengePage extends StatefulWidget {
@@ -16,6 +17,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
   int userId = 1; // Default fallback
   bool isNewbie = true;
   int userStreak = 0;
+  int completedChallenges = 0;
   String selectedTheme = "#A9A9A9";
 
   List<int> userGrid = List.filled(25, 0);
@@ -117,6 +119,35 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
     }, // Day 7 - Frame (4 colors)
   ];
 
+  final List<Map<String, dynamic>> weeklyChallengesConfig = [
+    {
+      "name": "Harvest Moon",
+      "time": 30,
+      "pattern": [
+        1, 2, 3, 4, 1,
+        2, 3, 4, 1, 2,
+        3, 4, 0, 2, 3,
+        4, 1, 2, 3, 4,
+        1, 2, 3, 4, 1,
+      ],
+      "tapSound": "audio/tap_sounds/harvest_moon _tapSound.mp3",
+      "background": "asset:assets/background/harvest_moon_background.jpeg",
+      "reward": "asset:assets/background/harvest_moon_background.jpeg",
+    },
+    {
+      "name": "Genshin",
+      "time": 35,
+      "pattern": [
+        1, 1, 2, 2, 3,
+        1, 4, 4, 3, 3,
+        2, 4, 0, 4, 2,
+        3, 3, 4, 4, 1,
+        3, 2, 2, 1, 1,
+      ],
+      "reward": "asset:assets/background/genshin_background.jpeg",
+    }
+  ];
+
   bool _hasCheckedAttempts = false;
   int _attempts = 0;
 
@@ -208,6 +239,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
     if (args != null) {
       isNewbie = args['isNewbie'] ?? true;
       userStreak = args['streak'] ?? 0;
+      completedChallenges = args['completedChallenges'] ?? 0;
       if (args.containsKey('user_id')) {
         userId = args['user_id'];
       }
@@ -217,19 +249,31 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
     _checkAndRecordAttempt();
   }
 
+  String _challengeBackground = "";
+
   void _setupChallenge() {
-    int index;
+    Map<String, dynamic> config;
     if (isNewbie) {
-      index = userStreak.clamp(0, 6);
+      int index = completedChallenges.clamp(0, 6);
+      config = newbieDaysConfig[index];
     } else {
-      // Rotation based on day of week for non-newbies
-      index = (DateTime.now().weekday - 1).clamp(0, 6);
+      // Weekly challenges for veterans
+      int weekIndex = ((completedChallenges - 7) ~/ 7).clamp(0, weeklyChallengesConfig.length - 1);
+      config = weeklyChallengesConfig[weekIndex];
+      
+      // Apply weekly challenge specific assets
+      if (config.containsKey("tapSound")) {
+        soundManager.setSelectedTapSound(config["tapSound"]);
+      }
+      if (config.containsKey("background")) {
+        _challengeBackground = config["background"];
+      }
     }
     
-    rewardColorHex = newbieDaysConfig[index]["color"];
-    rewardName = newbieDaysConfig[index]["name"];
-    targetPattern = newbieDaysConfig[index]["pattern"];
-    timeLimit = newbieDaysConfig[index]["time"];
+    rewardColorHex = config["reward"] ?? config["color"];
+    rewardName = config["name"];
+    targetPattern = config["pattern"];
+    timeLimit = config["time"];
     _secondsLeft = timeLimit;
   }
 
@@ -431,15 +475,26 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
                 width: 70,
                 height: 70,
                 decoration: BoxDecoration(
-                  color: Color(int.parse(rewardColorHex.replaceFirst('#', '0xFF'))),
+                  color: rewardColorHex.startsWith('#')
+                      ? Color(int.parse(rewardColorHex.replaceFirst('#', '0xFF')))
+                      : Colors.grey[300],
+                  image: rewardColorHex.startsWith('asset:')
+                      ? DecorationImage(
+                          image: AssetImage(rewardColorHex.substring(6)),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.black, width: 2),
                 ),
-                child: const Icon(Icons.palette, color: Colors.white, size: 40),
+                child: rewardColorHex.startsWith('#')
+                    ? const Icon(Icons.palette, color: Colors.white, size: 40)
+                    : null,
               ),
               const SizedBox(height: 15),
               Text("$rewardName theme unlocked!", style: GoogleFonts.pixelifySans()),
-            ] else if (alreadyClaimed) ...[
+            ]
+ else if (alreadyClaimed) ...[
               const Icon(Icons.info_outline, color: Colors.blue, size: 60),
               const SizedBox(height: 15),
               Text("You already claimed this reward!", style: GoogleFonts.pixelifySans()),
@@ -482,7 +537,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
     return Scaffold(
       body: Container(
         decoration: buildThemeDecoration(
-          selectedTheme,
+          _challengeBackground.isNotEmpty ? _challengeBackground : selectedTheme,
           radial: false,
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,

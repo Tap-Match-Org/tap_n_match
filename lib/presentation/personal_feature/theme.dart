@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
+import 'package:tap_n_match/core/tutorial_overlay.dart';
+import 'package:tap_n_match/core/tutorial_progress.dart';
 const String _defaultThemeKey = '#A9A9A9';
 const String _defaultTapSoundAsset = 'audio/tap_sounds/default_tapSounds.mp3';
 const String _defaultBgMusicAsset = 'audio/background_music/stal_default.mp3';
@@ -21,6 +23,11 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
   List<String> unlockedColors = [_defaultThemeKey];
   String selectedTheme = _defaultThemeKey;
   bool isLoading = true;
+  bool _didInitialize = false;
+  bool _showTutorial = false;
+  bool _isSavingTutorial = false;
+  bool _tutorialQueued = false;
+  int _tutorialStepIndex = 0;
 
   List<String> unlockedSounds = [_defaultTapSoundAsset];
   String selectedSound = _defaultTapSoundAsset;
@@ -35,6 +42,9 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
   late final AnimationController _topSnackBarController;
   late final AnimationController _newBadgeController;
   String _topSnackBarMessage = "";
+  final GlobalKey _backgroundColumnKey = GlobalKey();
+  final GlobalKey _soundColumnKey = GlobalKey();
+  final GlobalKey _musicColumnKey = GlobalKey();
 
   final Map<String, String> colorNames = {
     "#A9A9A9": "Default",
@@ -73,12 +83,15 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     _defaultTapSoundAsset: "Default Tap",
     "audio/tap_sounds/genshin_tap_sound.mp3": "Genshin Tap",
     "audio/tap_sounds/minecraft_tap_sound.mp3": "Minecraft Tap",
+    "audio/tap_sounds/snowfall_tap_sound.mp3": "Snowfall Tap",
   };
 
   final Map<String, String> musicNames = {
     _defaultBgMusicAsset: "Default Music",
     "audio/background_music/genshin_bgMusic.mp3": "Genshin BGM",
     "audio/background_music/minecraft_bgMusic.mp3": "Minecraft BGM",
+    "audio/background_music/harvestMoon.mp3": "Harvest Moon BGM",
+    "audio/background_music/snowfall_bgMusic.mp3": "Snowfall BGM",
   };
 
   @override
@@ -107,6 +120,8 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_didInitialize) return;
+    _didInitialize = true;
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null && args.containsKey('user_id')) {
       userId = args['user_id'];
@@ -118,7 +133,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     try {
       final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         final colors = (data['unlocked_themes'] as List<dynamic>?)
                 ?.map((value) => value.toString().trim())
                 .where((value) => value.isNotEmpty)
@@ -163,10 +178,115 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
           seenRewards = seen;
           isLoading = false;
         });
+        _queueTutorialIfNeeded(data);
       }
     } catch (e) {
       setState(() => isLoading = false);
     }
+  }
+
+  List<TutorialStep> get _tutorialSteps => [
+        TutorialStep(
+          targetKey: _backgroundColumnKey,
+          title: 'Background Themes',
+          description:
+              'Use this column to switch your background theme. Newly unlocked themes can show a NEW badge until you inspect them.',
+          cardPosition: TutorialCardPosition.topLeft,
+        ),
+        TutorialStep(
+          targetKey: _soundColumnKey,
+          title: 'Tap Sounds',
+          description:
+              'This column changes the sound that plays when you tap in the game. Select one to preview and equip it.',
+          cardPosition: TutorialCardPosition.topCenter,
+        ),
+        TutorialStep(
+          targetKey: _musicColumnKey,
+          title: 'Background Music',
+          description:
+              'Choose your background music here. Your selected track becomes the music used around the game.',
+          cardPosition: TutorialCardPosition.topRight,
+        ),
+      ];
+
+  void _queueTutorialIfNeeded(Map<String, dynamic> data) {
+    if (_tutorialQueued || !hasPendingTutorial(data, TutorialIds.themes)) {
+      return;
+    }
+
+    _tutorialQueued = true;
+    _showTutorialWhenReady();
+  }
+
+  void _showTutorialWhenReady() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      if (!_areTutorialTargetsReady()) {
+        WidgetsBinding.instance.scheduleFrame();
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) _showTutorialWhenReady();
+        });
+        return;
+      }
+
+      setState(() {
+        _tutorialStepIndex = 0;
+        _showTutorial = true;
+      });
+    });
+  }
+
+  bool _areTutorialTargetsReady() {
+    final targets = [
+      _backgroundColumnKey,
+      _soundColumnKey,
+      _musicColumnKey,
+    ];
+
+    for (final key in targets) {
+      final renderObject = key.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<void> _finishTutorial() async {
+    if (_isSavingTutorial) return;
+
+    setState(() => _isSavingTutorial = true);
+    try {
+      await markTutorialComplete(
+        userId: userId,
+        tutorialId: TutorialIds.themes,
+      );
+    } catch (error) {
+      await _showTopSnackBar(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingTutorial = false;
+          _showTutorial = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleTutorialNext() async {
+    if (_tutorialStepIndex < _tutorialSteps.length - 1) {
+      setState(() => _tutorialStepIndex++);
+      return;
+    }
+
+    await _finishTutorial();
+  }
+
+  void _handleTutorialBack() {
+    if (_tutorialStepIndex == 0) return;
+    setState(() => _tutorialStepIndex--);
   }
 
   Future<void> _markAsSeen(String rewardId) async {
@@ -337,11 +457,26 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
                         Expanded(
                           child: Row(
                             children: [
-                              _buildThemeColumn("Background", const Color(0xFFAEC6FF), unlockedColors.map((hex) => _themeItem(hex)).toList()),
+                              _buildThemeColumn(
+                                "Background",
+                                const Color(0xFFAEC6FF),
+                                unlockedColors.map((hex) => _themeItem(hex)).toList(),
+                                columnKey: _backgroundColumnKey,
+                              ),
                               const VerticalDivider(color: Colors.black, thickness: 2, width: 0),
-                              _buildThemeColumn("Tap Sound", const Color(0xFFFFF9B0), unlockedSounds.map((name) => _soundItem(name)).toList()),
+                              _buildThemeColumn(
+                                "Tap Sound",
+                                const Color(0xFFFFF9B0),
+                                unlockedSounds.map((name) => _soundItem(name)).toList(),
+                                columnKey: _soundColumnKey,
+                              ),
                               const VerticalDivider(color: Colors.black, thickness: 2, width: 0),
-                              _buildThemeColumn("Music", const Color(0xFFB4FF91), unlockedMusic.map((name) => _musicItem(name)).toList()),
+                              _buildThemeColumn(
+                                "Music",
+                                const Color(0xFFB4FF91),
+                                unlockedMusic.map((name) => _musicItem(name)).toList(),
+                                columnKey: _musicColumnKey,
+                              ),
                             ],
                           ),
                         ),
@@ -350,6 +485,15 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
                 ),
               ),
             ),
+            if (_showTutorial)
+              GuidedTutorialOverlay(
+                steps: _tutorialSteps,
+                currentIndex: _tutorialStepIndex,
+                onNext: _handleTutorialNext,
+                onBack: _handleTutorialBack,
+                onSkip: _finishTutorial,
+                isSaving: _isSavingTutorial,
+              ),
           ],
         ),
       ),
@@ -364,9 +508,15 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildThemeColumn(String title, Color headerColor, List<Widget> items) {
+  Widget _buildThemeColumn(
+    String title,
+    Color headerColor,
+    List<Widget> items, {
+    Key? columnKey,
+  }) {
     return Expanded(
       child: Column(
+        key: columnKey,
         children: [
           Container(
             width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 6),

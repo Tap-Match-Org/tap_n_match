@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/theme_background.dart';
+import 'package:tap_n_match/core/tutorial_overlay.dart';
+import 'package:tap_n_match/core/tutorial_progress.dart';
 
 class LeaderboardsPage extends StatefulWidget {
   const LeaderboardsPage({super.key});
@@ -17,6 +19,12 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
   bool isLoading = true;
   bool _didInitialize = false;
   List<Map<String, dynamic>> _players = [];
+  bool _showTutorial = false;
+  bool _isSavingTutorial = false;
+  bool _tutorialQueued = false;
+  int _tutorialStepIndex = 0;
+  final GlobalKey _headerRowKey = GlobalKey();
+  final GlobalKey _playersListKey = GlobalKey();
 
   @override
   void didChangeDependencies() {
@@ -43,12 +51,13 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
     try {
       final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         if (mounted) {
           setState(() {
             selectedTheme = data['selected_theme'] ?? "#A9A9A9";
           });
         }
+        _queueTutorialIfNeeded(data);
       }
     } catch (e) {
       debugPrint('Error loading user data: $e');
@@ -72,6 +81,114 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
     } catch (e) {
       debugPrint('Error loading leaderboard: $e');
     }
+  }
+
+  List<TutorialStep> get _tutorialSteps => [
+        TutorialStep(
+          targetKey: _headerRowKey,
+          title: 'Leaderboard Columns',
+          description:
+              'This row shows how the leaderboard is ranked: score, level progress, and achievements all contribute to the overview.',
+          cardPosition: TutorialCardPosition.topCenter,
+        ),
+        TutorialStep(
+          targetKey: _playersListKey,
+          title: 'Open Player Profiles',
+          description:
+              'Tap any player row to open their public profile and compare their performance with yours.',
+          cardPosition: TutorialCardPosition.bottomCenter,
+        ),
+      ];
+
+  void _queueTutorialIfNeeded(Map<String, dynamic> data) {
+    if (_tutorialQueued || !hasPendingTutorial(data, TutorialIds.leaderboards)) {
+      return;
+    }
+
+    _tutorialQueued = true;
+    _showTutorialWhenReady();
+  }
+
+  void _showTutorialWhenReady() {
+    WidgetsBinding.instance.endOfFrame.then((_) {
+      if (!mounted) return;
+
+      if (!_areTutorialTargetsReady()) {
+        WidgetsBinding.instance.scheduleFrame();
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) _showTutorialWhenReady();
+        });
+        return;
+      }
+
+      if (_showTutorial) return;
+
+      setState(() {
+        _tutorialStepIndex = 0;
+        _showTutorial = true;
+      });
+    });
+  }
+
+  bool _areTutorialTargetsReady() {
+    final targets = [
+      _headerRowKey,
+      _playersListKey,
+    ];
+
+    for (final key in targets) {
+      final renderObject = key.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<void> _finishTutorial() async {
+    if (_isSavingTutorial) return;
+
+    setState(() => _isSavingTutorial = true);
+    try {
+      await markTutorialComplete(
+        userId: userId,
+        tutorialId: TutorialIds.leaderboards,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().replaceFirst('Exception: ', ''),
+            style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingTutorial = false;
+          _showTutorial = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleTutorialNext() async {
+    if (_tutorialStepIndex < _tutorialSteps.length - 1) {
+      setState(() => _tutorialStepIndex++);
+      return;
+    }
+
+    await _finishTutorial();
+  }
+
+  void _handleTutorialBack() {
+    if (_tutorialStepIndex == 0) return;
+    setState(() => _tutorialStepIndex--);
   }
 
   @override
@@ -159,6 +276,7 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
                     else ...[
                       // TABLE HEADERS
                       Container(
+                        key: _headerRowKey,
                         color: const Color(0xFFAEC6FF).withOpacity(0.5),
                         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
                         child: Row(
@@ -189,6 +307,7 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
                       // SCROLLABLE LIST OF PLAYERS
                       Expanded(
                         child: ListView(
+                          key: _playersListKey,
                           padding: const EdgeInsets.all(10),
                           children: _players.map((player) {
                             final rank = (player['rank'] ?? '').toString();
@@ -218,6 +337,15 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
                 ),
               ),
             ),
+            if (_showTutorial)
+              GuidedTutorialOverlay(
+                steps: _tutorialSteps,
+                currentIndex: _tutorialStepIndex,
+                onNext: _handleTutorialNext,
+                onBack: _handleTutorialBack,
+                onSkip: _finishTutorial,
+                isSaving: _isSavingTutorial,
+              ),
           ],
         ),
       ),

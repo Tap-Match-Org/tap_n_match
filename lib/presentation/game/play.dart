@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
+import 'package:tap_n_match/core/tutorial_overlay.dart';
+import 'package:tap_n_match/core/tutorial_progress.dart';
 
 class GamePage extends StatefulWidget {
   const GamePage({super.key});
@@ -30,6 +32,16 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
   bool _madeDoneMistakeThisLevel = false;
   int _tapCountThisLevel = 0;
   int _optimalTapCount = 0;
+  bool _showTutorial = false;
+  bool _isSavingTutorial = false;
+  bool _tutorialQueued = false;
+  bool _hasPendingPlayTutorial = false;
+  bool _isTutorialActive = false;
+  int _tutorialStepIndex = 0;
+  final GlobalKey _scoreBarKey = GlobalKey();
+  final GlobalKey _targetGridKey = GlobalKey();
+  final GlobalKey _userGridKey = GlobalKey();
+  final GlobalKey _doneButtonKey = GlobalKey();
 
   late List<int> targetPattern;
   late List<int> userPattern;
@@ -66,6 +78,39 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
     _initializeGame();
   }
 
+  List<TutorialStep> get _tutorialSteps => [
+        TutorialStep(
+          targetKey: _targetGridKey,
+          title: 'Copy This Pattern',
+          description:
+              'The left boxes show the pattern you need to match. Study the colors before you start tapping.',
+          cardPosition: TutorialCardPosition.topLeft,
+          showArrow: false,
+        ),
+        TutorialStep(
+          targetKey: _userGridKey,
+          title: 'Tap Your Boxes',
+          description:
+              'Tap the boxes on your grid to cycle through colors until every box matches the target pattern.',
+          cardPosition: TutorialCardPosition.topRight,
+          showArrow: false,
+        ),
+        TutorialStep(
+          targetKey: _doneButtonKey,
+          title: 'Finish The Level',
+          description:
+              'When your grid matches the target, tap Done. Clear the pattern before the timer reaches zero to finish the level.',
+          cardPosition: TutorialCardPosition.topCenter,
+        ),
+        TutorialStep(
+          targetKey: _scoreBarKey,
+          title: 'How Scoring Works',
+          description:
+              'Your score increases from base level points, a fast-finish bonus when you clear early, and a perfect bonus for clean matches.',
+          cardPosition: TutorialCardPosition.bottomLeft,
+        ),
+      ];
+
   Future<void> _initializeGame() async {
     await _loadUserData();
     _startLevel();
@@ -73,6 +118,8 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
     if (mounted) {
       setState(() => _isLoading = false);
     }
+
+    _queueTutorialIfNeeded();
   }
 
   Future<void> _loadUserData() async {
@@ -80,6 +127,10 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
       final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        _hasPendingPlayTutorial = hasPendingTutorial(
+          Map<String, dynamic>.from(data as Map),
+          TutorialIds.play,
+        );
         if (mounted) {
           setState(() {
             selectedTheme = data['selected_theme'] ?? "#A9A9A9";
@@ -92,6 +143,98 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
     } catch (e) {
       debugPrint("Error loading theme: $e");
     }
+  }
+
+  void _queueTutorialIfNeeded() {
+    if (_tutorialQueued || !_hasPendingPlayTutorial) {
+      return;
+    }
+
+    _tutorialQueued = true;
+    timer?.cancel();
+    unawaited(_showTutorialWhenReady());
+  }
+
+  Future<void> _showTutorialWhenReady() async {
+    while (mounted) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+
+      if (_areTutorialTargetsReady()) {
+        setState(() {
+          _isTutorialActive = true;
+          _tutorialStepIndex = 0;
+          _showTutorial = true;
+        });
+        return;
+      }
+
+      // Force a new frame to ensure currentContext is updated
+      WidgetsBinding.instance.scheduleFrame();
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+  }
+
+  bool _areTutorialTargetsReady() {
+    final targets = [
+      _targetGridKey,
+      _userGridKey,
+      _doneButtonKey,
+      _scoreBarKey,
+    ];
+
+    for (final key in targets) {
+      final renderObject = key.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  void _resumeAfterTutorialIfNeeded() {
+    if (!mounted || _isLoading || isPaused || isGameOver) {
+      return;
+    }
+    _startTimer();
+  }
+
+  Future<void> _finishTutorial() async {
+    if (_isSavingTutorial) return;
+
+    setState(() => _isSavingTutorial = true);
+    try {
+      await markTutorialComplete(
+        userId: userId,
+        tutorialId: TutorialIds.play,
+      );
+    } catch (error) {
+      await _showTopSnackBar(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingTutorial = false;
+          _isTutorialActive = false;
+          _showTutorial = false;
+        });
+        _resumeAfterTutorialIfNeeded();
+      }
+    }
+  }
+
+  Future<void> _handleTutorialNext() async {
+    if (_tutorialStepIndex < _tutorialSteps.length - 1) {
+      setState(() => _tutorialStepIndex++);
+      return;
+    }
+
+    await _finishTutorial();
+  }
+
+  void _handleTutorialBack() {
+    if (_tutorialStepIndex == 0) return;
+    setState(() => _tutorialStepIndex--);
   }
 
   void _startLevel() {
@@ -118,7 +261,7 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
   void _startTimer() {
     timer?.cancel();
     timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted || isPaused || isGameOver) return;
+      if (!mounted || isPaused || isGameOver || _isTutorialActive) return;
 
       if (secondsLeft <= 1) {
         t.cancel();
@@ -144,7 +287,7 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
       if (mounted) {
         setState(() {
           targetPattern = List.generate(
-            targetPattern.length, 
+            targetPattern.length,
             (index) => _nextPatternValue(config.colors)
           );
         });
@@ -163,7 +306,7 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
   Future<void> _showExitConfirmation({bool returnToPauseMenu = false}) async {
     bool wasPaused = isPaused;
     if (!wasPaused) _pauseGame();
-    
+
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -566,7 +709,7 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
         currentScore = 0;
       });
     }
-    
+
     if (quit) {
       _showExitConfirmation();
       return;
@@ -868,15 +1011,36 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _buildGrid(targetPattern, false, "Target", config),
+                            _buildGrid(
+                              targetPattern,
+                              false,
+                              "Target",
+                              config,
+                              tutorialKey: _targetGridKey,
+                            ),
                             const SizedBox(width: 20),
                             _buildCenterUI(),
                             const SizedBox(width: 20),
-                            _buildGrid(userPattern, !isGameOver && !isPaused && !_isSubmittingLevel, "Your Grid", config),
+                            _buildGrid(
+                              userPattern,
+                              !isGameOver && !isPaused && !_isSubmittingLevel,
+                              "Your Grid",
+                              config,
+                              tutorialKey: _userGridKey,
+                            ),
                           ],
                         ),
                       ),
                     ),
+                    if (_showTutorial)
+                      GuidedTutorialOverlay(
+                        steps: _tutorialSteps,
+                        currentIndex: _tutorialStepIndex,
+                        onNext: _handleTutorialNext,
+                        onBack: _handleTutorialBack,
+                        onSkip: _finishTutorial,
+                        isSaving: _isSavingTutorial,
+                      ),
                   ],
                 ),
         ),
@@ -896,11 +1060,14 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
         ),
         const Icon(Icons.timer_outlined, color: Colors.black, size: 48),
         const SizedBox(height: 30),
-        _buildButton(
-          "Done",
-          (isGameOver || isPaused || _isSubmittingLevel)
-              ? () {}
-              : () => _checkWin(triggeredByDone: true),
+        Container(
+          key: _doneButtonKey,
+          child: _buildButton(
+            "Done",
+            (isGameOver || isPaused || _isSubmittingLevel)
+                ? () {}
+                : () => _checkWin(triggeredByDone: true),
+          ),
         ),
       ],
     );
@@ -908,6 +1075,7 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
 
   Widget _buildScoreBar() {
     return Container(
+      key: _scoreBarKey,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.92),
@@ -953,11 +1121,18 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildGrid(List<int> gridData, bool isInteractive, String label, _DifficultyConfig config) {
+  Widget _buildGrid(
+    List<int> gridData,
+    bool isInteractive,
+    String label,
+    _DifficultyConfig config, {
+    Key? tutorialKey,
+  }) {
     double boxSize = 260 / max(config.rows, config.cols);
     if (boxSize > 60) boxSize = 60;
 
     return Column(
+      key: tutorialKey,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label, style: GoogleFonts.pixelifySans(color: Colors.white70)),
@@ -1016,15 +1191,24 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
 
   Color _getColorForValue(int value) {
     switch (value) {
-      case 0: return Colors.white;
-      case 1: return Colors.red;
-      case 2: return Colors.blue;
-      case 3: return Colors.green;
-      case 4: return Colors.yellow;
-      case 5: return Colors.orange;
-      case 6: return Colors.purple;
-      case 7: return Colors.pink;
-      default: return Colors.white;
+      case 0:
+        return Colors.white;
+      case 1:
+        return Colors.red;
+      case 2:
+        return Colors.blue;
+      case 3:
+        return Colors.green;
+      case 4:
+        return Colors.yellow;
+      case 5:
+        return Colors.orange;
+      case 6:
+        return Colors.purple;
+      case 7:
+        return Colors.pink;
+      default:
+        return Colors.white;
     }
   }
 }

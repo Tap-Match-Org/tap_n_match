@@ -36,6 +36,20 @@ GENSHIN_TAP_SOUND = "audio/tap_sounds/genshin_tap_sound.mp3"
 GENSHIN_BG_MUSIC = "audio/background_music/genshin_bgMusic.mp3"
 MINECRAFT_TAP_SOUND = "audio/tap_sounds/minecraft_tap_sound.mp3"
 MINECRAFT_BG_MUSIC = "audio/background_music/minecraft_bgMusic.mp3"
+SNOWFALL_TAP_SOUND = "audio/tap_sounds/snowfall_tap_sound.mp3"
+HARVEST_MOON_BG_MUSIC = "audio/background_music/harvestMoon.mp3"
+SNOWFALL_BG_MUSIC = "audio/background_music/snowfall_bgMusic.mp3"
+WELCOME_TUTORIAL_ID = "welcome"
+STANDARD_TUTORIAL_IDS = (
+    "profile",
+    "play",
+    "daily_challenge",
+    "leaderboards",
+    "achievements",
+    "themes",
+    "support",
+)
+TUTORIAL_IDS = (WELCOME_TUTORIAL_ID, *STANDARD_TUTORIAL_IDS)
 
 ACHIEVEMENT_CATALOG = [
     {
@@ -224,10 +238,10 @@ ACHIEVEMENT_CATALOG = [
         "description": "Reach a total score of 10,000.",
         "metric": "total_score",
         "target": 10000,
-        "reward_type": "theme",
-        "reward_label": "Theme",
-        "reward_name": "Silver Star",
-        "reward_id": "#C0C0C0",
+        "reward_type": "bg_music",
+        "reward_label": "Music",
+        "reward_name": "Harvest Moon BGM",
+        "reward_id": HARVEST_MOON_BG_MUSIC,
         "icon": "stars",
     },
     {
@@ -284,10 +298,10 @@ ACHIEVEMENT_CATALOG = [
         "description": "Reach Level 100.",
         "metric": "highest_level",
         "target": 100,
-        "reward_type": "theme",
-        "reward_label": "Theme",
-        "reward_name": "Slate Stone",
-        "reward_id": "#708090",
+        "reward_type": "bg_music",
+        "reward_label": "Music",
+        "reward_name": "Snowfall BGM",
+        "reward_id": SNOWFALL_BG_MUSIC,
         "icon": "military_tech",
     },
     {
@@ -320,10 +334,10 @@ ACHIEVEMENT_CATALOG = [
         "description": "Maintain a 30-day daily challenge streak.",
         "metric": "streak",
         "target": 30,
-        "reward_type": "theme",
-        "reward_label": "Theme",
-        "reward_name": "Bronze Age",
-        "reward_id": "#CD7F32",
+        "reward_type": "tap_sound",
+        "reward_label": "Tap Sound",
+        "reward_name": "Snowfall Tap",
+        "reward_id": SNOWFALL_TAP_SOUND,
         "icon": "history",
     },
     {
@@ -409,7 +423,9 @@ def init_db():
             unlocked_bg_music TEXT DEFAULT 'audio/background_music/stal_default.mp3',
             selected_bg_music TEXT DEFAULT 'audio/background_music/stal_default.mp3',
             claimed_rewards TEXT DEFAULT '',
-            seen_rewards TEXT DEFAULT ''
+            seen_rewards TEXT DEFAULT '',
+            tutorial_enabled INTEGER DEFAULT 0,
+            completed_tutorials TEXT DEFAULT ''
         )
     """)
     
@@ -439,6 +455,8 @@ def init_db():
         ("selected_bg_music", f"TEXT DEFAULT '{DEFAULT_BG_MUSIC}'"),
         ("claimed_rewards", "TEXT DEFAULT ''"),
         ("seen_rewards", "TEXT DEFAULT ''"),
+        ("tutorial_enabled", "INTEGER DEFAULT 0"),
+        ("completed_tutorials", "TEXT DEFAULT ''"),
     ]
     for col_name, col_type in columns_to_add:
         try:
@@ -536,6 +554,48 @@ def build_reward_inventory(user_row: sqlite3.Row) -> dict:
     }
 
 
+def get_int_value(user_row: sqlite3.Row, key: str) -> int:
+    keys = set(user_row.keys())
+    if key not in keys or user_row[key] is None:
+        return 0
+    return int(user_row[key])
+
+
+def is_fresh_account(user_row: sqlite3.Row) -> bool:
+    return (
+        get_int_value(user_row, "total_score") == 0
+        and get_int_value(user_row, "highest_score") == 0
+        and get_int_value(user_row, "highest_level") == 0
+        and get_int_value(user_row, "levels_cleared") == 0
+        and get_int_value(user_row, "boxes_tapped") == 0
+        and get_int_value(user_row, "completed_daily_challenges") == 0
+    )
+
+
+def get_applicable_tutorial_ids(user_row: sqlite3.Row) -> list[str]:
+    tutorial_ids = list(STANDARD_TUTORIAL_IDS)
+    if is_fresh_account(user_row):
+        tutorial_ids.insert(0, WELCOME_TUTORIAL_ID)
+    return tutorial_ids
+
+
+def build_tutorial_state(user_row: sqlite3.Row) -> dict:
+    keys = set(user_row.keys())
+    tutorial_enabled = bool(user_row["tutorial_enabled"]) if "tutorial_enabled" in keys else False
+    completed_tutorials = split_csv(user_row["completed_tutorials"]) if "completed_tutorials" in keys else []
+    pending_tutorials = [
+        tutorial_id
+        for tutorial_id in get_applicable_tutorial_ids(user_row)
+        if tutorial_enabled and tutorial_id not in completed_tutorials
+    ]
+    return {
+        "tutorial_enabled": tutorial_enabled,
+        "completed_tutorials": completed_tutorials,
+        "pending_tutorials": pending_tutorials,
+        "has_pending_tutorials": bool(pending_tutorials),
+    }
+
+
 def evaluate_achievements(user_row: sqlite3.Row) -> dict:
     keys = set(user_row.keys())
     def get_value(key: str, default: int = 0):
@@ -604,11 +664,13 @@ def build_user_payload(user_row: sqlite3.Row) -> dict:
     user_dict = dict(user_row)
     achievement_state = evaluate_achievements(user_row)
     inventory = build_reward_inventory(user_row)
+    tutorial_state = build_tutorial_state(user_row)
     user_dict["unlocked_themes"] = inventory["themes"]
     user_dict["unlocked_tap_sounds"] = inventory["tap_sounds"]
     user_dict["unlocked_bg_music"] = inventory["bg_music"]
     user_dict["claimed_rewards"] = inventory["claimed_rewards"]
     user_dict.update(achievement_state)
+    user_dict.update(tutorial_state)
     return user_dict
 
 
@@ -676,8 +738,20 @@ async def register(request: RegisterRequest):
     cursor = conn.cursor()
     today = date.today().isoformat()
     try:
-        cursor.execute("INSERT INTO users (username, email, password, created_at) VALUES (?, ?, ?, ?)",
-                       (request.username, request.email, request.password, today))
+        cursor.execute(
+            """
+            INSERT INTO users (
+                username,
+                email,
+                password,
+                created_at,
+                tutorial_enabled,
+                completed_tutorials
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (request.username, request.email, request.password, today, 1, ""),
+        )
         conn.commit()
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=400, detail="Username or email exists.")
@@ -767,6 +841,49 @@ async def get_user_info(user_id: int):
         user_dict["daily_attempts"] = 0
 
     return user_dict
+
+
+@app.put("/tutorials/{user_id}/{tutorial_id}/complete")
+async def complete_tutorial(user_id: int, tutorial_id: str):
+    normalized_tutorial_id = tutorial_id.strip().lower()
+    if normalized_tutorial_id not in TUTORIAL_IDS:
+        raise HTTPException(status_code=400, detail="Unknown tutorial.")
+
+    conn = sqlite3.connect("users.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+
+    completed_tutorials = split_csv(user["completed_tutorials"])
+    if normalized_tutorial_id not in completed_tutorials:
+        completed_tutorials.append(normalized_tutorial_id)
+
+    applicable_tutorial_ids = get_applicable_tutorial_ids(user)
+    is_all_done = all(tutorial in completed_tutorials for tutorial in applicable_tutorial_ids)
+    tutorial_enabled = 0 if is_all_done else 1
+
+    cursor.execute(
+        """
+        UPDATE users
+        SET tutorial_enabled = ?, completed_tutorials = ?
+        WHERE id = ?
+        """,
+        (tutorial_enabled, join_csv(completed_tutorials), user_id),
+    )
+    conn.commit()
+
+    updated_user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+
+    return {
+        "status": "success",
+        "tutorial_id": normalized_tutorial_id,
+        **build_tutorial_state(updated_user),
+    }
 
 
 @app.get("/public-users/{user_id}")
@@ -1057,7 +1174,9 @@ async def reset_account(user_id: int):
             selected_tap_sound = ?,
             unlocked_bg_music = ?,
             selected_bg_music = ?,
-            claimed_rewards = ''
+            claimed_rewards = '',
+            tutorial_enabled = 1,
+            completed_tutorials = ''
         WHERE id = ?
         """,
         (DEFAULT_THEME, DEFAULT_TAP_SOUND, DEFAULT_TAP_SOUND, DEFAULT_BG_MUSIC, DEFAULT_BG_MUSIC, user_id),
