@@ -1501,6 +1501,50 @@ async def get_admin_stats():
         "pending_reports": pending_reports
     }
 
+@app.get("/admin/users", dependencies=[Depends(verify_admin)])
+async def get_admin_users(search: str = ""):
+    conn = sqlite3.connect("users.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    query = "SELECT id, username, email, total_score, highest_level, is_banned, ban_reason FROM users"
+    params = []
+    
+    if search:
+        query += " WHERE username LIKE ? OR email LIKE ?"
+        params = [f"%{search}%", f"%{search}%"]
+    
+    query += " ORDER BY id DESC"
+    
+    users = cursor.execute(query, params).fetchall()
+    conn.close()
+    
+    return [dict(u) for u in users]
+
+@app.post("/admin/users/{user_id}/reset", dependencies=[Depends(verify_admin)])
+async def admin_reset_user(user_id: int):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    
+    # Check if user exists
+    user = cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    cursor.execute("""
+        UPDATE users 
+        SET total_score = 0, highest_score = 0, highest_level = 0, levels_cleared = 0,
+            fast_finishes = 0, perfect_finishes = 0, boxes_tapped = 0, completed_daily_challenges = 0,
+            extreme_clears = 0, unlocked_themes = '', selected_theme = '#A9A9A9',
+            streak = 0, last_challenge_date = NULL, daily_attempts = 0, last_attempt_date = NULL
+        WHERE id = ?
+    """, (user_id,))
+    
+    conn.commit()
+    conn.close()
+    return {"message": f"User {user_id} progress reset successfully."}
+
 class BanRequest(BaseModel):
     reason: str
 
