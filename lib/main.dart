@@ -54,22 +54,34 @@ class TapAndMatchApp extends StatelessWidget {
         return Listener(
           onPointerDown: (PointerDownEvent event) {
             final hitTestResult = HitTestResult();
-            // Use hitTestInView to avoid deprecation warning
             final view = View.of(context);
             WidgetsBinding.instance.hitTestInView(hitTestResult, event.position, view.viewId);
             
             bool hitInteractive = false;
             for (final entry in hitTestResult.path) {
               final target = entry.target;
-              if (target is RenderBox) {
-                // Check if the hit target or its parents are likely interactive
-                // This includes buttons (ElevatedButton, TextButton, etc. which use InkWell/RenderSemanticsAnnotations)
-                // and TextFields.
-                if (target.runtimeType.toString().contains('RenderSemanticsAnnotations') ||
-                    target.runtimeType.toString().contains('RenderPointerListener') ||
-                    target.runtimeType.toString().contains('RenderInk')) {
-                  hitInteractive = true;
-                  break;
+
+              final typeName = target.runtimeType.toString();
+              
+              // RenderInk captures most Material-based buttons and list items
+              // RenderEditable captures TextFields
+              // RenderPointerListener is used by GestureDetector
+              // We include RenderParagraph only if it's likely part of an interactive element
+              if (typeName.contains('RenderInk') || 
+                  typeName.contains('RenderEditable') ||
+                  typeName.contains('RenderListTile') ||
+                  typeName.contains('RenderDropdownMenu')) {
+                hitInteractive = true;
+                break;
+              }
+
+              // Special handling for RenderPointerListener to avoid background clicks
+              // We check if it's a descendant of something that shouldn't be silent
+              if (target is RenderPointerListener) {
+                if (target.onPointerDown != null) {
+                   // This is still a bit broad but usually catches specific UI elements
+                   // if they are NOT the top-level page listener.
+                   // However, for now, RenderInk covers most cases.
                 }
               }
             }

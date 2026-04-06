@@ -17,6 +17,7 @@ dependencies:
   http: ^1.2.1
   audioplayers: ^6.1.0
   file_picker: ^8.0.0
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -40,3 +41,4 @@ flutter:
     - assets/background/minecraft_bgColor.jpg
     - assets/background/harvest_moon_background.jpeg
     - assets/background/genshin_background.jpeg
+    - assets/background/snowfall_background.jpeg

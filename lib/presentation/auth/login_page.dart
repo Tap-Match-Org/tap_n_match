@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/core/persistence_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -21,6 +22,16 @@ class _LoginPageState extends State<LoginPage> {
     super.initState();
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
+    _loadSavedUsername();
+  }
+
+  Future<void> _loadSavedUsername() async {
+    final savedUsername = await PersistenceService.getUsername();
+    if (savedUsername != null && mounted) {
+      setState(() {
+        _emailController.text = savedUsername;
+      });
+    }
   }
 
   @override
@@ -54,6 +65,11 @@ class _LoginPageState extends State<LoginPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final userId = (data['user_id'] as num).toInt();
+        final loggedInUsername = data['username'] as String;
+
+        // Save session
+        await PersistenceService.saveUserId(userId);
+        await PersistenceService.saveUsername(loggedInUsername);
         
         if (mounted) {
           Navigator.of(context).pushReplacementNamed(

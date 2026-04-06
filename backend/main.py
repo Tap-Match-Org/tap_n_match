@@ -31,7 +31,7 @@ pending_codes = {}
 DEFAULT_THEME = "#A9A9A9"
 DEFAULT_TAP_SOUND = "audio/tap_sounds/default_tapSounds.mp3"
 DEFAULT_BG_MUSIC = "audio/background_music/stal_default.mp3"
-MINECRAFT_BG_THEME = "asset:assets/background_color/minecraft_bgColor.jpg"
+MINECRAFT_BG_THEME = "asset:assets/background/minecraft_bgColor.jpg"
 GENSHIN_TAP_SOUND = "audio/tap_sounds/genshin_tap_sound.mp3"
 GENSHIN_BG_MUSIC = "audio/background_music/genshin_bgMusic.mp3"
 MINECRAFT_TAP_SOUND = "audio/tap_sounds/minecraft_tap_sound.mp3"
@@ -39,6 +39,7 @@ MINECRAFT_BG_MUSIC = "audio/background_music/minecraft_bgMusic.mp3"
 SNOWFALL_TAP_SOUND = "audio/tap_sounds/snowfall_tap_sound.mp3"
 HARVEST_MOON_BG_MUSIC = "audio/background_music/harvestMoon.mp3"
 SNOWFALL_BG_MUSIC = "audio/background_music/snowfall_bgMusic.mp3"
+SNOWFALL_BG_THEME = "asset:assets/background/snowfall_background.jpeg"
 WELCOME_TUTORIAL_ID = "welcome"
 STANDARD_TUTORIAL_IDS = (
     "profile",
@@ -311,10 +312,10 @@ ACHIEVEMENT_CATALOG = [
         "metric": "extreme_clears",
         "target": 15,
         "reward_type": "theme",
-        "reward_label": "Theme",
-        "reward_name": "Navy Commander",
-        "reward_id": "#000080",
-        "icon": "gavel",
+        "reward_label": "Background",
+        "reward_name": "Snowfall",
+        "reward_id": SNOWFALL_BG_THEME,
+        "icon": "ac_unit",
     },
     {
         "id": "streak_14",
@@ -422,6 +423,10 @@ def init_db():
             selected_tap_sound TEXT DEFAULT 'audio/tap_sounds/default_tapSounds.mp3',
             unlocked_bg_music TEXT DEFAULT 'audio/background_music/stal_default.mp3',
             selected_bg_music TEXT DEFAULT 'audio/background_music/stal_default.mp3',
+            tap_sound_enabled INTEGER DEFAULT 1,
+            bg_music_enabled INTEGER DEFAULT 1,
+            tap_volume REAL DEFAULT 1.0,
+            bg_volume REAL DEFAULT 0.5,
             claimed_rewards TEXT DEFAULT '',
             seen_rewards TEXT DEFAULT '',
             tutorial_enabled INTEGER DEFAULT 0,
@@ -453,6 +458,10 @@ def init_db():
         ("selected_tap_sound", f"TEXT DEFAULT '{DEFAULT_TAP_SOUND}'"),
         ("unlocked_bg_music", f"TEXT DEFAULT '{DEFAULT_BG_MUSIC}'"),
         ("selected_bg_music", f"TEXT DEFAULT '{DEFAULT_BG_MUSIC}'"),
+        ("tap_sound_enabled", "INTEGER DEFAULT 1"),
+        ("bg_music_enabled", "INTEGER DEFAULT 1"),
+        ("tap_volume", "REAL DEFAULT 1.0"),
+        ("bg_volume", "REAL DEFAULT 0.5"),
         ("claimed_rewards", "TEXT DEFAULT ''"),
         ("seen_rewards", "TEXT DEFAULT ''"),
         ("tutorial_enabled", "INTEGER DEFAULT 0"),
@@ -527,6 +536,13 @@ class EmailUpdateRequest(BaseModel):
 
 class ProfilePictureUpdateRequest(BaseModel):
     profile_picture: str
+
+
+class AudioSettingsUpdateRequest(BaseModel):
+    tap_sound_enabled: bool
+    bg_music_enabled: bool
+    tap_volume: float
+    bg_volume: float
 
 
 def split_csv(raw_value: str | None) -> list[str]:
@@ -669,6 +685,13 @@ def build_user_payload(user_row: sqlite3.Row) -> dict:
     user_dict["unlocked_tap_sounds"] = inventory["tap_sounds"]
     user_dict["unlocked_bg_music"] = inventory["bg_music"]
     user_dict["claimed_rewards"] = inventory["claimed_rewards"]
+    
+    # Audio settings
+    user_dict["tap_sound_enabled"] = bool(user_row["tap_sound_enabled"]) if "tap_sound_enabled" in user_dict else True
+    user_dict["bg_music_enabled"] = bool(user_row["bg_music_enabled"]) if "bg_music_enabled" in user_dict else True
+    user_dict["tap_volume"] = user_row["tap_volume"] if "tap_volume" in user_dict else 1.0
+    user_dict["bg_volume"] = user_row["bg_volume"] if "bg_volume" in user_dict else 0.5
+
     user_dict.update(achievement_state)
     user_dict.update(tutorial_state)
     return user_dict
@@ -1134,13 +1157,41 @@ async def update_profile_picture(user_id: int, request: ProfilePictureUpdateRequ
         conn.close()
         raise HTTPException(status_code=404, detail="User not found")
 
-    cursor.execute(
-        "UPDATE users SET profile_picture = ? WHERE id = ?",
-        (profile_picture, user_id),
-    )
+    cursor.execute("UPDATE users SET profile_picture = ? WHERE id = ?", (profile_picture, user_id))
     conn.commit()
     conn.close()
     return {"status": "success", "message": "Profile picture updated."}
+
+
+@app.put("/update-audio-settings/{user_id}")
+async def update_audio_settings(user_id: int, request: AudioSettingsUpdateRequest):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    user = cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+
+    cursor.execute(
+        """
+        UPDATE users
+        SET tap_sound_enabled = ?,
+            bg_music_enabled = ?,
+            tap_volume = ?,
+            bg_volume = ?
+        WHERE id = ?
+        """,
+        (
+            1 if request.tap_sound_enabled else 0,
+            1 if request.bg_music_enabled else 0,
+            request.tap_volume,
+            request.bg_volume,
+            user_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return {"status": "success"}
 
 
 @app.post("/reset-account/{user_id}")
@@ -1423,9 +1474,10 @@ async def mark_reward_seen(user_id: int, reward_id: str):
         conn.close()
         raise HTTPException(status_code=404, detail="User not found")
 
+    trimmed_reward_id = reward_id.strip()
     seen_list = split_csv(user["seen_rewards"])
-    if reward_id not in seen_list:
-        seen_list.append(reward_id)
+    if trimmed_reward_id not in seen_list:
+        seen_list.append(trimmed_reward_id)
         new_seen = join_csv(seen_list)
         cursor.execute("UPDATE users SET seen_rewards = ? WHERE id = ?", (new_seen, user_id))
         conn.commit()

@@ -243,7 +243,7 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
 
     timer?.cancel();
     pauseShuffleTimer?.cancel();
-    targetPattern = List.generate(totalBoxes, (index) => _nextPatternValue(config.colors));
+    targetPattern = List.generate(totalBoxes, (index) => _nextPatternValue(config.colors, excludeDefault: true));
     userPattern = List.filled(totalBoxes, 0);
     _optimalTapCount = targetPattern.fold<int>(0, (sum, value) => sum + value);
     _tapCountThisLevel = 0;
@@ -288,7 +288,7 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
         setState(() {
           targetPattern = List.generate(
             targetPattern.length,
-            (index) => _nextPatternValue(config.colors)
+            (index) => _nextPatternValue(config.colors, excludeDefault: true)
           );
         });
       }
@@ -383,46 +383,49 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
                           value: soundManager.tapSoundEnabled,
                           onChanged: (val) async {
                             await soundManager.setTapSoundEnabled(val);
+                            await soundManager.persistToServer(userId);
                             setDialogState(() {});
                           },
                           activeColor: Colors.green,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    _buildVolumeControl(
-                      label: "Tap Volume",
-                      value: soundManager.tapVolume,
-                      onChanged: (value) async {
+                        ],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildVolumeControl(
+                        label: "Tap Volume",
+                        value: soundManager.tapVolume,
+                        onChanged: (value) async {
                         await soundManager.setTapVolume(value);
+                        await soundManager.persistToServer(userId);
                         setDialogState(() {});
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
+                        },
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
                         Text("Music", style: GoogleFonts.pixelifySans(fontSize: 12)),
                         Switch(
                           value: soundManager.bgMusicEnabled,
                           onChanged: (val) async {
                             await soundManager.setBgMusicEnabled(val);
+                            await soundManager.persistToServer(userId);
                             setDialogState(() {});
                           },
                           activeColor: Colors.green,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    _buildVolumeControl(
-                      label: "Music Volume",
-                      value: soundManager.bgVolume,
-                      onChanged: (value) async {
+                        ],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildVolumeControl(
+                        label: "Music Volume",
+                        value: soundManager.bgVolume,
+                        onChanged: (value) async {
                         await soundManager.setBgVolume(value);
+                        await soundManager.persistToServer(userId);
                         setDialogState(() {});
-                      },
-                    ),
-                  ],
+                        },
+                        ),                  ],
                 ),
               ),
             ),
@@ -504,8 +507,13 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
     return "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
   }
 
-  int _nextPatternValue(int colorCount) {
+  int _nextPatternValue(int colorCount, {bool excludeDefault = false}) {
     if (colorCount <= 1) return 0;
+
+    if (excludeDefault) {
+      // Pick a random color from 1 to colorCount - 1
+      return 1 + _random.nextInt(colorCount - 1);
+    }
 
     // Keep white available, but less frequent than the other colors.
     final weightedPoolSize = 1 + ((colorCount - 1) * 2);

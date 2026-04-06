@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:tap_n_match/core/soundmanager.dart';
+import 'package:tap_n_match/core/persistence_service.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -69,7 +70,13 @@ class _SplashPageState extends State<SplashPage>
     final navigator = Navigator.of(context);
     await soundManager.playBgMusic();
     if (!mounted) return;
-    navigator.pushReplacementNamed('/login');
+
+    final userId = await PersistenceService.getUserId();
+    if (userId != null) {
+      navigator.pushReplacementNamed('/menu', arguments: {'user_id': userId});
+    } else {
+      navigator.pushReplacementNamed('/login');
+    }
   }
 
   @override

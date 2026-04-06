@@ -94,6 +94,17 @@ class _MainMenuPageState extends State<MainMenuPage>
           _claimableRewardCount = data['claimable_reward_count'] as int? ?? 0;
         });
 
+        // Update sound settings
+        await soundManager.setTapSoundEnabled(data['tap_sound_enabled'] ?? true);
+        await soundManager.setBgMusicEnabled(data['bg_music_enabled'] ?? true);
+        await soundManager.setTapVolume((data['tap_volume'] as num?)?.toDouble() ?? 1.0);
+        await soundManager.setBgVolume((data['bg_volume'] as num?)?.toDouble() ?? 0.5);
+        
+        await soundManager.updateSettings(
+          tapSound: data['selected_tap_sound'],
+          bgMusic: data['selected_bg_music'],
+        );
+
         _queueTutorialIfNeeded(data);
       }
     } catch (e) {
@@ -296,6 +307,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                             value: soundManager.tapSoundEnabled,
                             onChanged: (value) async {
                               await soundManager.setTapSoundEnabled(value);
+                              await soundManager.persistToServer(userId);
                               setDialogState(() {});
                             },
                             activeColor: Colors.green,
@@ -307,6 +319,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                           soundManager.tapVolume,
                           (value) async {
                             await soundManager.setTapVolume(value);
+                            await soundManager.persistToServer(userId);
                             setDialogState(() {});
                           },
                         ),
@@ -318,6 +331,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                             value: soundManager.bgMusicEnabled,
                             onChanged: (value) async {
                               await soundManager.setBgMusicEnabled(value);
+                              await soundManager.persistToServer(userId);
                               setDialogState(() {});
                             },
                             activeColor: Colors.green,
@@ -329,10 +343,10 @@ class _MainMenuPageState extends State<MainMenuPage>
                           soundManager.bgVolume,
                           (value) async {
                             await soundManager.setBgVolume(value);
+                            await soundManager.persistToServer(userId);
                             setDialogState(() {});
                           },
-                        ),
-                      ],
+                        ),                      ],
                     ),
                   ),
                   Positioned(

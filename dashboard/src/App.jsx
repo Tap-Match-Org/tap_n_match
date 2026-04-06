@@ -20,7 +20,7 @@ function AuthComponent({ onAuth }) {
 
     return (
         <div className="auth-section">
-            <h2>Admin Dashboard</h2>
+            <h2>Tap & Match Admin Dashboard</h2>
             <form onSubmit={handleSubmit}>
                 <div className="form-group">
                     <label htmlFor="adminKey">Admin Key:</label>

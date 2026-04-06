@@ -62,21 +62,21 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     "#FF4500": "Sunset Orange",
     "#DC143C": "Crimson Red",
     "#BF00FF": "Electric Purple",
-    "#C0C0C0": "Silver Star",
     "#800000": "Maroon Velvet",
     "#191970": "Midnight Blue",
     "#FF7F50": "Coral Reef",
     "#40E0D0": "Turquoise Dream",
-    "#708090": "Slate Stone",
     "#000080": "Navy Commander",
     "#50C878": "Emerald Green",
-    "#CD7F32": "Bronze Age",
     "#FF69B4": "Hot Pink",
     "#39FF14": "Neon Green",
     "#E0E0E0": "Pearl White",
     "#A020F0": "Rainbow Prism",
     "#F8F8FF": "Perfect White",
-    "asset:assets/background_color/minecraft_bgColor.jpg": "Minecraft Grass",
+    "asset:assets/background/minecraft_bgColor.jpg": "Minecraft Grass",
+    "asset:assets/background/harvest_moon_background.jpeg": "Harvest Moon",
+    "asset:assets/background/genshin_background.jpeg": "Genshin",
+    "asset:assets/background/snowfall_background.jpeg": "Snowfall",
   };
 
   final Map<String, String> soundNames = {
@@ -170,11 +170,11 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
 
         setState(() {
           unlockedColors = colors;
-          selectedTheme = data['selected_theme'] ?? _defaultThemeKey;
+          selectedTheme = (data['selected_theme'] as String?)?.trim() ?? _defaultThemeKey;
           unlockedSounds = sounds;
-          selectedSound = data['selected_tap_sound'] ?? _defaultTapSoundAsset;
+          selectedSound = (data['selected_tap_sound'] as String?)?.trim() ?? _defaultTapSoundAsset;
           unlockedMusic = musics;
-          selectedMusic = data['selected_bg_music'] ?? _defaultBgMusicAsset;
+          selectedMusic = (data['selected_bg_music'] as String?)?.trim() ?? _defaultBgMusicAsset;
           seenRewards = seen;
           isLoading = false;
         });
@@ -290,15 +290,16 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
   }
 
   Future<void> _markAsSeen(String rewardId) async {
-    if (seenRewards.contains(rewardId)) return;
+    final id = rewardId.trim();
+    if (seenRewards.contains(id)) return;
     
     try {
       final response = await http.put(
-        Uri.parse('http://localhost:8000/mark-reward-seen/$userId/${Uri.encodeComponent(rewardId)}'),
+        Uri.parse('http://localhost:8000/mark-reward-seen/$userId/${Uri.encodeComponent(id)}'),
       );
       if (response.statusCode == 200) {
         setState(() {
-          seenRewards.add(rewardId);
+          seenRewards.add(id);
         });
       }
     } catch (e) {
@@ -307,15 +308,16 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
   }
 
   Future<void> _selectTheme(String themeKey) async {
-    _markAsSeen(themeKey);
+    final trimmedKey = themeKey.trim();
+    _markAsSeen(trimmedKey);
     try {
       final response = await http.put(
-        Uri.parse('http://localhost:8000/select-theme/$userId?theme_color=${Uri.encodeComponent(themeKey)}'),
+        Uri.parse('http://localhost:8000/select-theme/$userId?theme_color=${Uri.encodeComponent(trimmedKey)}'),
       );
       if (response.statusCode == 200) {
         if (!mounted) return;
-        setState(() => selectedTheme = themeKey);
-        _showTopSnackBar("Theme changed to ${colorNames[themeKey] ?? themeKey}!");
+        setState(() => selectedTheme = trimmedKey);
+        _showTopSnackBar("Theme changed to ${colorNames[trimmedKey] ?? trimmedKey}!");
       }
     } catch (e) {
       debugPrint("Error selecting theme: $e");
@@ -323,17 +325,18 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
   }
 
   Future<void> _selectSound(String assetPath) async {
-    _markAsSeen(assetPath);
+    final trimmedPath = assetPath.trim();
+    _markAsSeen(trimmedPath);
     try {
       final response = await http.put(Uri.parse(
-        'http://localhost:8000/select-tap-sound/$userId?asset_path=${Uri.encodeComponent(assetPath)}',
+        'http://localhost:8000/select-tap-sound/$userId?asset_path=${Uri.encodeComponent(trimmedPath)}',
       ));
       if (response.statusCode == 200) {
-        await soundManager.setSelectedTapSound(assetPath);
+        await soundManager.setSelectedTapSound(trimmedPath);
         await soundManager.playTap();
         if (!mounted) return;
-        setState(() => selectedSound = assetPath);
-        _showTopSnackBar("Tap sound changed to ${soundNames[assetPath] ?? 'a new sound'}!");
+        setState(() => selectedSound = trimmedPath);
+        _showTopSnackBar("Tap sound changed to ${soundNames[trimmedPath] ?? 'a new sound'}!");
       }
     } catch (e) {
       debugPrint("Error selecting tap sound: $e");
@@ -341,16 +344,17 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
   }
 
   Future<void> _selectMusic(String assetPath) async {
-    _markAsSeen(assetPath);
+    final trimmedPath = assetPath.trim();
+    _markAsSeen(trimmedPath);
     try {
       final response = await http.put(Uri.parse(
-        'http://localhost:8000/select-bg-music/$userId?asset_path=${Uri.encodeComponent(assetPath)}',
+        'http://localhost:8000/select-bg-music/$userId?asset_path=${Uri.encodeComponent(trimmedPath)}',
       ));
       if (response.statusCode == 200) {
-        await soundManager.setSelectedBgMusic(assetPath);
+        await soundManager.setSelectedBgMusic(trimmedPath);
         if (!mounted) return;
-        setState(() => selectedMusic = assetPath);
-        _showTopSnackBar("Music changed to ${musicNames[assetPath] ?? 'a new track'}!");
+        setState(() => selectedMusic = trimmedPath);
+        _showTopSnackBar("Music changed to ${musicNames[trimmedPath] ?? 'a new track'}!");
       }
     } catch (e) {
       debugPrint("Error selecting music: $e");
@@ -533,9 +537,9 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     final assetPath = assetThemePath(themeKey);
     final bool isAsset = assetPath != null;
     final bool isSelected = selectedTheme == themeKey;
-    final String name = colorNames[themeKey] ?? (isAsset ? "Image Theme" : themeKey);
+    final String name = colorNames[themeKey.trim()] ?? (isAsset ? "Image Theme" : themeKey);
     final Color backgroundColor = isAsset ? Colors.black45 : parseThemeColor(themeKey);
-    final bool isNew = !seenRewards.contains(themeKey) && !isSelected && themeKey != _defaultThemeKey;
+    final bool isNew = !seenRewards.contains(themeKey.trim()) && !isSelected && themeKey != _defaultThemeKey;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -588,7 +592,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
   Widget _soundItem(String assetPath) {
     final bool isSelected = selectedSound == assetPath;
     final String label = soundNames[assetPath] ?? assetPath.split('/').last;
-    final bool isNew = !seenRewards.contains(assetPath) && !isSelected && assetPath != _defaultTapSoundAsset;
+    final bool isNew = !seenRewards.contains(assetPath.trim()) && !isSelected && assetPath != _defaultTapSoundAsset;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -633,7 +637,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
   Widget _musicItem(String assetPath) {
     final bool isSelected = selectedMusic == assetPath;
     final String label = musicNames[assetPath] ?? assetPath.split('/').last;
-    final bool isNew = !seenRewards.contains(assetPath) && !isSelected && assetPath != _defaultBgMusicAsset;
+    final bool isNew = !seenRewards.contains(assetPath.trim()) && !isSelected && assetPath != _defaultBgMusicAsset;
 
     return Stack(
       clipBehavior: Clip.none,

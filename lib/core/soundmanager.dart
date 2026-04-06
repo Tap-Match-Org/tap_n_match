@@ -1,5 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class SoundManager {
   static final SoundManager _instance = SoundManager._internal();
@@ -86,9 +88,58 @@ class SoundManager {
     _selectedTapSound = assetPath;
   }
 
+  Future<void> updateSettings({String? tapSound, String? bgMusic}) async {
+    if (tapSound != null && tapSound.isNotEmpty) {
+      _selectedTapSound = tapSound;
+    }
+    if (bgMusic != null && bgMusic.isNotEmpty) {
+      if (_selectedBgMusic != bgMusic) {
+        final wasPlaying = _isBgMusicPlaying;
+        _selectedBgMusic = bgMusic;
+        if (wasPlaying) {
+          await stopBgMusic();
+          await playBgMusic();
+        }
+      }
+    }
+  }
+
   Future<void> stopBgMusic() async {
     await _bgMusicPlayer.stop();
     _isBgMusicPlaying = false;
+  }
+
+  Future<void> resetToDefault() async {
+    final wasPlaying = _isBgMusicPlaying;
+    if (wasPlaying) {
+      await stopBgMusic();
+    }
+    _selectedTapSound = 'audio/tap_sounds/default_tapSounds.mp3';
+    _selectedBgMusic = 'audio/background_music/stal_default.mp3';
+    _tapSoundEnabled = true;
+    _bgMusicEnabled = true;
+    _tapVolume = 1.0;
+    _bgVolume = 0.5;
+    if (wasPlaying) {
+      await playBgMusic();
+    }
+  }
+
+  Future<void> persistToServer(int userId) async {
+    try {
+      await http.put(
+        Uri.parse('http://localhost:8000/update-audio-settings/$userId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'tap_sound_enabled': _tapSoundEnabled,
+          'bg_music_enabled': _bgMusicEnabled,
+          'tap_volume': _tapVolume,
+          'bg_volume': _bgVolume,
+        }),
+      );
+    } catch (e) {
+      debugPrint('Error persisting audio settings: $e');
+    }
   }
 
   void dispose() {
