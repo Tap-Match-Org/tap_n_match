@@ -45,45 +45,21 @@ function AuthComponent({ onAuth }) {
 }
 
 // Stats component
-function StatsBar({ stats, adminKey }) {
-    const [error, setError] = useState('');
-
-    useEffect(() => {
-        if (adminKey) {
-            fetchStats();
-        }
-    }, [adminKey]);
-
-    const fetchStats = async () => {
-        try {
-            const response = await axios.get(`${API_BASE_URL}/admin/stats`, {
-                headers: { 'X-Admin-Key': adminKey }
-            });
-            // Update stats in parent
-        } catch (err) {
-            setError('Failed to fetch stats');
-        }
-    };
-
+function StatsBar({ stats }) {
     return (
-        <div>
-            {error && <div className="alert alert-error">{error}</div>}
-            {stats && (
-                <div className="stats">
-                    <div className="stat-card">
-                        <h3>Total Users</h3>
-                        <div className="number">{stats.total_users || 0}</div>
-                    </div>
-                    <div className="stat-card">
-                        <h3>Banned Users</h3>
-                        <div className="number">{stats.banned_users || 0}</div>
-                    </div>
-                    <div className="stat-card">
-                        <h3>Pending Reports</h3>
-                        <div className="number">{stats.pending_reports || 0}</div>
-                    </div>
-                </div>
-            )}
+        <div className="stats">
+            <div className="stat-card">
+                <h3>Total Users</h3>
+                <div className="number">{stats?.total_users || 0}</div>
+            </div>
+            <div className="stat-card">
+                <h3>Banned Users</h3>
+                <div className="number">{stats?.banned_users || 0}</div>
+            </div>
+            <div className="stat-card">
+                <h3>Pending Reports</h3>
+                <div className="number">{stats?.pending_reports || 0}</div>
+            </div>
         </div>
     );
 }
@@ -571,7 +547,7 @@ function Dashboard({ adminKey, onLogout }) {
 
             {error && <div className="alert alert-error">{error}</div>}
 
-            <StatsBar stats={stats} adminKey={adminKey} />
+            <StatsBar stats={stats} />
 
             <div className="tabs">
                 <button
