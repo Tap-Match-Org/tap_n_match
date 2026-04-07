@@ -427,10 +427,44 @@ def init_db():
             bg_music_enabled INTEGER DEFAULT 1,
             tap_volume REAL DEFAULT 1.0,
             bg_volume REAL DEFAULT 0.5,
+            is_banned INTEGER DEFAULT 0,
+            ban_reason TEXT,
             claimed_rewards TEXT DEFAULT '',
             seen_rewards TEXT DEFAULT '',
             tutorial_enabled INTEGER DEFAULT 0,
             completed_tutorials TEXT DEFAULT ''
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reporter_id INTEGER,
+            reported_id INTEGER,
+            reason TEXT,
+            timestamp TEXT,
+            status TEXT DEFAULT 'Pending'
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS appeals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            appeal_text TEXT,
+            status TEXT DEFAULT 'Pending',
+            timestamp TEXT
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS support_tickets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            type TEXT,
+            message TEXT,
+            status TEXT DEFAULT 'Open',
+            timestamp TEXT
         )
     """)
     
@@ -462,6 +496,8 @@ def init_db():
         ("bg_music_enabled", "INTEGER DEFAULT 1"),
         ("tap_volume", "REAL DEFAULT 1.0"),
         ("bg_volume", "REAL DEFAULT 0.5"),
+        ("is_banned", "INTEGER DEFAULT 0"),
+        ("ban_reason", "TEXT"),
         ("claimed_rewards", "TEXT DEFAULT ''"),
         ("seen_rewards", "TEXT DEFAULT ''"),
         ("tutorial_enabled", "INTEGER DEFAULT 0"),
@@ -1027,6 +1063,7 @@ async def get_leaderboards():
         SELECT id, username, unlocked_themes, selected_theme, highest_score, highest_level, streak,
                last_challenge_date, levels_cleared, fast_finishes, perfect_finishes
         FROM users
+        WHERE is_banned = 0
         ORDER BY highest_score DESC, highest_level DESC, username COLLATE NOCASE ASC
         """
     ).fetchall()

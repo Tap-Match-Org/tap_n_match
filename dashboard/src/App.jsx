@@ -56,10 +56,6 @@ function StatsBar({ stats }) {
                 <h3>Banned Users</h3>
                 <div className="number">{stats?.banned_users || 0}</div>
             </div>
-            <div className="stat-card">
-                <h3>Pending Reports</h3>
-                <div className="number">{stats?.pending_reports || 0}</div>
-            </div>
         </div>
     );
 }
@@ -557,18 +553,6 @@ function Dashboard({ adminKey, onLogout }) {
                     Users
                 </button>
                 <button
-                    className={`tab-button ${activeTab === 'reports' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('reports')}
-                >
-                    Reports
-                </button>
-                <button
-                    className={`tab-button ${activeTab === 'appeals' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('appeals')}
-                >
-                    Appeals
-                </button>
-                <button
                     className={`tab-button ${activeTab === 'tickets' ? 'active' : ''}`}
                     onClick={() => setActiveTab('tickets')}
                 >
@@ -577,8 +561,6 @@ function Dashboard({ adminKey, onLogout }) {
             </div>
 
             {activeTab === 'users' && <UsersTab adminKey={adminKey} />}
-            {activeTab === 'reports' && <ReportsTab adminKey={adminKey} />}
-            {activeTab === 'appeals' && <AppealsTab adminKey={adminKey} />}
             {activeTab === 'tickets' && <SupportTicketsTab adminKey={adminKey} />}
         </div>
     );
