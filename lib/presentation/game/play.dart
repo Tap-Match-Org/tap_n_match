@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:confetti/confetti.dart';
 import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
@@ -16,7 +17,9 @@ class GamePage extends StatefulWidget {
   State<GamePage> createState() => _GamePageState();
 }
 
-class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin {
+class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
+  late ConfettiController _confettiController;
+  final Random _random = Random();
   int userId = 1;
   String selectedTheme = "#A9A9A9";
   int currentLevel = 1;
@@ -53,11 +56,10 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
   late final AnimationController _topSnackBarController;
   String _topSnackBarMessage = "";
 
-  final Random _random = Random();
-
   @override
   void initState() {
     super.initState();
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
     _topSnackBarController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 280),
@@ -418,13 +420,29 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
                         ),
                         const SizedBox(height: 8),
                         _buildVolumeControl(
-                        label: "Music Volume",
-                        value: soundManager.bgVolume,
-                        onChanged: (value) async {
-                        await soundManager.setBgVolume(value);
-                        await soundManager.persistToServer(userId);
-                        setDialogState(() {});
-                        },
+                          label: "Music Volume",
+                          value: soundManager.bgVolume,
+                          onChanged: (value) async {
+                            await soundManager.setBgVolume(value);
+                            await soundManager.persistToServer(userId);
+                            setDialogState(() {});
+                          },
+                        ),
+                        const Divider(color: Colors.black54),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text("Colorblind Mode", style: GoogleFonts.pixelifySans(fontSize: 12)),
+                            Switch(
+                              value: soundManager.colorblindMode,
+                              onChanged: (val) async {
+                                await soundManager.setColorblindMode(val);
+                                await soundManager.persistToServer(userId);
+                                setDialogState(() {});
+                              },
+                              activeColor: Colors.blue,
+                            ),
+                          ],
                         ),                  ],
                 ),
               ),
@@ -535,6 +553,7 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
   void _handleCellTap(int index, _DifficultyConfig config) {
     if (_isSubmittingLevel || isPaused || isGameOver) return;
 
+    soundManager.playTap();
     setState(() {
       _tapCountThisLevel++;
       userPattern[index] = (userPattern[index] + 1) % config.colors;
@@ -560,6 +579,10 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
     _usedDoneButtonThisLevel = triggeredByDone;
     timer?.cancel();
     pauseShuffleTimer?.cancel();
+    
+    // Celebratory effect
+    _confettiController.play();
+    
     if (mounted) {
       setState(() {});
     }
@@ -947,6 +970,7 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
 
   @override
   void dispose() {
+    _confettiController.dispose();
     timer?.cancel();
     pauseShuffleTimer?.cancel();
     _topSnackBarTimer?.cancel();
@@ -970,89 +994,116 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
           opacityEnd: 0.5,
         ),
         child: SafeArea(
-          child: _isLoading
-              ? Center(
-                  child: Text(
-                    "Loading...",
-                    style: GoogleFonts.pixelifySans(
-                      fontSize: 24,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                )
-              : Stack(
-                  children: [
-                    Positioned(
-                      left: 20,
-                      top: 20,
-                      child: _buildScoreBar(),
-                    ),
-                    Positioned(
-                      right: 20,
-                      top: 20,
-                      child: Row(
-                        children: [
-                          Text(
-                            "Level: $currentLevel (${config.label})",
-                            style: GoogleFonts.pixelifySans(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(width: 15),
-                          GestureDetector(
-                            onTap: _showPauseDialog,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.black, width: 2),
-                              ),
-                              child: const Icon(Icons.pause, color: Colors.black),
-                            ),
-                          ),
-                        ],
+          child: Stack(
+            children: [
+              _isLoading
+                  ? const Center(
+                      child: Text(
+                        "Loading...",
+                        style: TextStyle(fontSize: 24, color: Colors.white),
                       ),
-                    ),
-                    Center(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildGrid(
-                              targetPattern,
-                              false,
-                              "Target",
-                              config,
-                              tutorialKey: _targetGridKey,
-                            ),
-                            const SizedBox(width: 20),
-                            _buildCenterUI(),
-                            const SizedBox(width: 20),
-                            _buildGrid(
-                              userPattern,
-                              !isGameOver && !isPaused && !_isSubmittingLevel,
-                              "Your Grid",
-                              config,
-                              tutorialKey: _userGridKey,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (_showTutorial)
-                      GuidedTutorialOverlay(
-                        steps: _tutorialSteps,
-                        currentIndex: _tutorialStepIndex,
-                        onNext: _handleTutorialNext,
-                        onBack: _handleTutorialBack,
-                        onSkip: _finishTutorial,
-                        isSaving: _isSavingTutorial,
-                      ),
+                    )
+                  : _buildGameContent(config),
+
+              // Celebratory Confetti
+              Align(
+                alignment: Alignment.topCenter,
+                child: ConfettiWidget(
+                  confettiController: _confettiController,
+                  blastDirectionality: BlastDirectionality.explosive,
+                  shouldLoop: false,
+                  colors: const [
+                    Colors.green,
+                    Colors.blue,
+                    Colors.pink,
+                    Colors.orange,
+                    Colors.purple,
+                    Colors.yellow,
+                    Colors.red,
                   ],
+                  createParticlePath: _drawStar,
                 ),
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildGameContent(_DifficultyConfig config) {
+    return Stack(
+      children: [
+        Positioned(
+          left: 20,
+          top: 20,
+          child: _buildScoreBar(),
+        ),
+        Positioned(
+          right: 20,
+          top: 20,
+          child: Row(
+            children: [
+              Text(
+                "Level: $currentLevel (${config.label})",
+                style: GoogleFonts.pixelifySans(
+                    fontSize: 20,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 15),
+              GestureDetector(
+                onTap: _showPauseDialog,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.black, width: 2),
+                  ),
+                  child: const Icon(Icons.pause, color: Colors.black),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Center(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildGrid(
+                  targetPattern,
+                  false,
+                  "Target",
+                  config,
+                  tutorialKey: _targetGridKey,
+                ),
+                const SizedBox(width: 20),
+                _buildCenterUI(),
+                const SizedBox(width: 20),
+                _buildGrid(
+                  userPattern,
+                  !isGameOver && !isPaused && !_isSubmittingLevel,
+                  "Your Grid",
+                  config,
+                  tutorialKey: _userGridKey,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_showTutorial)
+          GuidedTutorialOverlay(
+            steps: _tutorialSteps,
+            currentIndex: _tutorialStepIndex,
+            onNext: _handleTutorialNext,
+            onBack: _handleTutorialBack,
+            onSkip: _finishTutorial,
+            isSaving: _isSavingTutorial,
+          ),
+      ],
     );
   }
 
@@ -1171,6 +1222,15 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(color: Colors.black, width: 2),
                       ),
+                      child: soundManager.colorblindMode
+                          ? Center(
+                              child: Icon(
+                                _getSymbolForValue(gridData[index]),
+                                size: boxSize * 0.6,
+                                color: Colors.black.withOpacity(0.3),
+                              ),
+                            )
+                          : null,
                     ),
                   );
                 }),
@@ -1214,10 +1274,56 @@ class _GamePageState extends State<GamePage> with SingleTickerProviderStateMixin
       case 6:
         return Colors.purple;
       case 7:
-        return Colors.pink;
+        return Colors.cyan;
       default:
         return Colors.white;
     }
+  }
+
+  IconData? _getSymbolForValue(int value) {
+    switch (value) {
+      case 1:
+        return Icons.favorite;
+      case 2:
+        return Icons.cloud;
+      case 3:
+        return Icons.eco;
+      case 4:
+        return Icons.star;
+      case 5:
+        return Icons.diamond;
+      case 6:
+        return Icons.bolt;
+      case 7:
+        return Icons.hexagon;
+      default:
+        return null;
+    }
+  }
+
+  Path _drawStar(Size size) {
+    // Star drawing logic
+    double degToRad(double deg) => deg * (pi / 180.0);
+
+    const numberOfPoints = 5;
+    final halfWidth = size.width / 2;
+    final externalRadius = halfWidth;
+    final internalRadius = halfWidth / 2.5;
+    final degreesPerStep = degToRad(360 / numberOfPoints);
+    final halfDegreesPerStep = degreesPerStep / 2;
+    final path = Path();
+    final fullAngle = degToRad(-90);
+
+    path.moveTo(size.width / 2, 0);
+
+    for (int step = 0; degToRad(step.toDouble()) < degToRad(360); step += (360 ~/ numberOfPoints)) {
+      path.lineTo(halfWidth + externalRadius * cos(degToRad(step.toDouble()) + fullAngle),
+          halfWidth + externalRadius * sin(degToRad(step.toDouble()) + fullAngle));
+      path.lineTo(halfWidth + internalRadius * cos(degToRad(step.toDouble()) + halfDegreesPerStep + fullAngle),
+          halfWidth + internalRadius * sin(degToRad(step.toDouble()) + halfDegreesPerStep + fullAngle));
+    }
+    path.close();
+    return path;
   }
 }
 

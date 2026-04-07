@@ -419,6 +419,8 @@ def init_db():
             boxes_tapped INTEGER DEFAULT 0,
             completed_daily_challenges INTEGER DEFAULT 0,
             extreme_clears INTEGER DEFAULT 0,
+            banked_points INTEGER DEFAULT 0,
+            lifetime_points INTEGER DEFAULT 0,
             unlocked_tap_sounds TEXT DEFAULT 'audio/tap_sounds/default_tapSounds.mp3',
             selected_tap_sound TEXT DEFAULT 'audio/tap_sounds/default_tapSounds.mp3',
             unlocked_bg_music TEXT DEFAULT 'audio/background_music/stal_default.mp3',
@@ -427,6 +429,7 @@ def init_db():
             bg_music_enabled INTEGER DEFAULT 1,
             tap_volume REAL DEFAULT 1.0,
             bg_volume REAL DEFAULT 0.5,
+            colorblind_mode INTEGER DEFAULT 0,
             is_banned INTEGER DEFAULT 0,
             ban_reason TEXT,
             claimed_rewards TEXT DEFAULT '',
@@ -488,6 +491,8 @@ def init_db():
         ("boxes_tapped", "INTEGER DEFAULT 0"),
         ("completed_daily_challenges", "INTEGER DEFAULT 0"),
         ("extreme_clears", "INTEGER DEFAULT 0"),
+        ("banked_points", "INTEGER DEFAULT 0"),
+        ("lifetime_points", "INTEGER DEFAULT 0"),
         ("unlocked_tap_sounds", f"TEXT DEFAULT '{DEFAULT_TAP_SOUND}'"),
         ("selected_tap_sound", f"TEXT DEFAULT '{DEFAULT_TAP_SOUND}'"),
         ("unlocked_bg_music", f"TEXT DEFAULT '{DEFAULT_BG_MUSIC}'"),
@@ -574,11 +579,12 @@ class ProfilePictureUpdateRequest(BaseModel):
     profile_picture: str
 
 
-class AudioSettingsUpdateRequest(BaseModel):
+class UserSettingsUpdateRequest(BaseModel):
     tap_sound_enabled: bool
     bg_music_enabled: bool
     tap_volume: float
     bg_volume: float
+    colorblind_mode: bool
 
 
 def split_csv(raw_value: str | None) -> list[str]:
@@ -722,11 +728,12 @@ def build_user_payload(user_row: sqlite3.Row) -> dict:
     user_dict["unlocked_bg_music"] = inventory["bg_music"]
     user_dict["claimed_rewards"] = inventory["claimed_rewards"]
     
-    # Audio settings
+    # User settings
     user_dict["tap_sound_enabled"] = bool(user_row["tap_sound_enabled"]) if "tap_sound_enabled" in user_dict else True
     user_dict["bg_music_enabled"] = bool(user_row["bg_music_enabled"]) if "bg_music_enabled" in user_dict else True
     user_dict["tap_volume"] = user_row["tap_volume"] if "tap_volume" in user_dict else 1.0
     user_dict["bg_volume"] = user_row["bg_volume"] if "bg_volume" in user_dict else 0.5
+    user_dict["colorblind_mode"] = bool(user_row["colorblind_mode"]) if "colorblind_mode" in user_dict else False
 
     user_dict.update(achievement_state)
     user_dict.update(tutorial_state)
@@ -1001,6 +1008,8 @@ async def complete_level(user_id: int, request: LevelCompletionRequest):
     current_extreme_clears = user["extreme_clears"] or 0
 
     new_total_score = current_total_score + score_breakdown["total_earned"]
+    new_banked_points = (user["banked_points"] or 0) + score_breakdown["total_earned"]
+    new_lifetime_points = (user["lifetime_points"] or 0) + score_breakdown["total_earned"]
     new_run_score = max(request.run_score_before_level, 0) + score_breakdown["total_earned"]
     new_highest_score = max(current_highest_score, new_run_score)
     new_highest_level = max(current_highest_level, request.level)
@@ -1014,7 +1023,8 @@ async def complete_level(user_id: int, request: LevelCompletionRequest):
         """
         UPDATE users
         SET total_score = ?, highest_score = ?, highest_level = ?, levels_cleared = ?,
-            fast_finishes = ?, perfect_finishes = ?, boxes_tapped = ?, extreme_clears = ?
+            fast_finishes = ?, perfect_finishes = ?, boxes_tapped = ?, extreme_clears = ?,
+            banked_points = ?, lifetime_points = ?
         WHERE id = ?
         """,
         (
@@ -1026,6 +1036,8 @@ async def complete_level(user_id: int, request: LevelCompletionRequest):
             new_perfect_finishes,
             new_boxes_tapped,
             new_extreme_clears,
+            new_banked_points,
+            new_lifetime_points,
             user_id,
         ),
     )
@@ -1045,6 +1057,8 @@ async def complete_level(user_id: int, request: LevelCompletionRequest):
         "status": "success",
         "score_breakdown": score_breakdown,
         "total_score": new_total_score,
+        "banked_points": new_banked_points,
+        "lifetime_points": new_lifetime_points,
         "highest_score": new_highest_score,
         "highest_level": new_highest_level,
         "boxes_tapped": new_boxes_tapped,
@@ -1061,10 +1075,10 @@ async def get_leaderboards():
     rows = cursor.execute(
         """
         SELECT id, username, unlocked_themes, selected_theme, highest_score, highest_level, streak,
-               last_challenge_date, levels_cleared, fast_finishes, perfect_finishes
+               last_challenge_date, levels_cleared, fast_finishes, perfect_finishes, lifetime_points
         FROM users
         WHERE is_banned = 0
-        ORDER BY highest_score DESC, highest_level DESC, username COLLATE NOCASE ASC
+        ORDER BY lifetime_points DESC, highest_score DESC, highest_level DESC, username COLLATE NOCASE ASC
         """
     ).fetchall()
     conn.close()
@@ -1076,12 +1090,60 @@ async def get_leaderboards():
             "user_id": row["id"],
             "username": row["username"],
             "selected_theme": row["selected_theme"],
-            "score": row["highest_score"],
+            "score": row["lifetime_points"],
             "highest_level": row["highest_level"],
             "achievement_count": calculate_achievement_count(row),
         })
 
     return {"players": leaderboard}
+
+class BuyItemRequest(BaseModel):
+    item_id: str
+    item_type: str # 'theme', 'tap_sound', 'bg_music'
+    price: int
+
+@app.post("/buy-item/{user_id}")
+async def buy_item(user_id: int, request: BuyItemRequest):
+    conn = sqlite3.connect("users.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    current_banked = user["banked_points"] or 0
+    if current_banked < request.price:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Insufficient points")
+        
+    # Add to inventory
+    inventory_col = {
+        "theme": "unlocked_themes",
+        "tap_sound": "unlocked_tap_sounds",
+        "bg_music": "unlocked_bg_music"
+    }.get(request.item_type)
+    
+    if not inventory_col:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Invalid item type")
+        
+    unlocked_items = split_csv(user[inventory_col])
+    if request.item_id in unlocked_items:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Item already unlocked")
+        
+    unlocked_items.append(request.item_id)
+    new_inventory = join_csv(unlocked_items)
+    new_banked = current_banked - request.price
+    
+    cursor.execute(f"UPDATE users SET {inventory_col} = ?, banked_points = ? WHERE id = ?", 
+                   (new_inventory, new_banked, user_id))
+    conn.commit()
+    conn.close()
+    
+    return {"status": "success", "banked_points": new_banked}
 
 
 @app.put("/update-username/{user_id}")
@@ -1200,8 +1262,8 @@ async def update_profile_picture(user_id: int, request: ProfilePictureUpdateRequ
     return {"status": "success", "message": "Profile picture updated."}
 
 
-@app.put("/update-audio-settings/{user_id}")
-async def update_audio_settings(user_id: int, request: AudioSettingsUpdateRequest):
+@app.put("/update-user-settings/{user_id}")
+async def update_user_settings(user_id: int, request: UserSettingsUpdateRequest):
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
     user = cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -1215,7 +1277,8 @@ async def update_audio_settings(user_id: int, request: AudioSettingsUpdateReques
         SET tap_sound_enabled = ?,
             bg_music_enabled = ?,
             tap_volume = ?,
-            bg_volume = ?
+            bg_volume = ?,
+            colorblind_mode = ?
         WHERE id = ?
         """,
         (
@@ -1223,6 +1286,7 @@ async def update_audio_settings(user_id: int, request: AudioSettingsUpdateReques
             1 if request.bg_music_enabled else 0,
             request.tap_volume,
             request.bg_volume,
+            1 if request.colorblind_mode else 0,
             user_id,
         ),
     )
@@ -1544,7 +1608,7 @@ async def get_admin_users(search: str = ""):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    query = "SELECT id, username, email, total_score, highest_level, is_banned, ban_reason FROM users"
+    query = "SELECT id, username, email, total_score, highest_level, is_banned, ban_reason, banked_points, lifetime_points FROM users"
     params = []
     
     if search:
@@ -1557,6 +1621,20 @@ async def get_admin_users(search: str = ""):
     conn.close()
     
     return [dict(u) for u in users]
+
+class AdjustPointsRequest(BaseModel):
+    banked_points: int
+    lifetime_points: int
+
+@app.post("/admin/users/{user_id}/adjust-points", dependencies=[Depends(verify_admin)])
+async def adjust_points(user_id: int, request: AdjustPointsRequest):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET banked_points = ?, lifetime_points = ? WHERE id = ?", 
+                   (request.banked_points, request.lifetime_points, user_id))
+    conn.commit()
+    conn.close()
+    return {"message": f"Points for user {user_id} adjusted successfully."}
 
 @app.post("/admin/users/{user_id}/reset", dependencies=[Depends(verify_admin)])
 async def admin_reset_user(user_id: int):

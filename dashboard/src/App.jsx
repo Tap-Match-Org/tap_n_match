@@ -448,7 +448,9 @@ function UsersTab({ adminKey }) {
                                 <th>ID</th>
                                 <th>Username</th>
                                 <th>Email</th>
-                                <th>Score</th>
+                                <th>Total Score</th>
+                                <th>Banked</th>
+                                <th>Lifetime</th>
                                 <th>Level</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -461,6 +463,8 @@ function UsersTab({ adminKey }) {
                                     <td>{user.username}</td>
                                     <td>{user.email}</td>
                                     <td>{user.total_score}</td>
+                                    <td>{user.banked_points}</td>
+                                    <td>{user.lifetime_points}</td>
                                     <td>{user.highest_level}</td>
                                     <td>
                                         <span className={`status-badge status-${user.is_banned ? 'rejected' : 'approved'}`}>
@@ -469,6 +473,24 @@ function UsersTab({ adminKey }) {
                                     </td>
                                     <td>
                                         <div className="action-cell">
+                                            <button
+                                                className="btn-secondary"
+                                                onClick={() => {
+                                                    const newBanked = prompt('New Banked Points:', user.banked_points);
+                                                    if (newBanked === null) return;
+                                                    const newLifetime = prompt('New Lifetime Points:', user.lifetime_points);
+                                                    if (newLifetime === null) return;
+                                                    
+                                                    axios.post(`${API_BASE_URL}/admin/users/${user.id}/adjust-points`, {
+                                                        banked_points: parseInt(newBanked),
+                                                        lifetime_points: parseInt(newLifetime)
+                                                    }, {
+                                                        headers: { 'X-Admin-Key': adminKey }
+                                                    }).then(() => fetchUsers(search)).catch(err => setError('Failed to adjust points'));
+                                                }}
+                                            >
+                                                Pts
+                                            </button>
                                             <button
                                                 className={user.is_banned ? 'btn-primary' : 'btn-secondary'}
                                                 onClick={() => toggleBan(user)}

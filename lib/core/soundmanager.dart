@@ -17,11 +17,13 @@ class SoundManager {
   bool _bgMusicEnabled = true;
   double _tapVolume = 1.0;
   double _bgVolume = 0.5;
+  bool _colorblindMode = false;
 
   bool get tapSoundEnabled => _tapSoundEnabled;
   bool get bgMusicEnabled => _bgMusicEnabled;
   double get tapVolume => _tapVolume;
   double get bgVolume => _bgVolume;
+  bool get colorblindMode => _colorblindMode;
   String get selectedTapSound => _selectedTapSound;
 
   // Preload or cache settings could be added here
@@ -75,6 +77,10 @@ class SoundManager {
     await _bgMusicPlayer.setVolume(volume);
   }
 
+  Future<void> setColorblindMode(bool enabled) async {
+    _colorblindMode = enabled;
+  }
+
   Future<void> setSelectedBgMusic(String assetPath) async {
     final wasPlaying = _isBgMusicPlaying;
     _selectedBgMusic = assetPath;
@@ -120,6 +126,7 @@ class SoundManager {
     _bgMusicEnabled = true;
     _tapVolume = 1.0;
     _bgVolume = 0.5;
+    _colorblindMode = false;
     if (wasPlaying) {
       await playBgMusic();
     }
@@ -128,17 +135,18 @@ class SoundManager {
   Future<void> persistToServer(int userId) async {
     try {
       await http.put(
-        Uri.parse('http://localhost:8000/update-audio-settings/$userId'),
+        Uri.parse('http://localhost:8000/update-user-settings/$userId'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'tap_sound_enabled': _tapSoundEnabled,
           'bg_music_enabled': _bgMusicEnabled,
           'tap_volume': _tapVolume,
           'bg_volume': _bgVolume,
+          'colorblind_mode': _colorblindMode,
         }),
       );
     } catch (e) {
-      debugPrint('Error persisting audio settings: $e');
+      debugPrint('Error persisting user settings: $e');
     }
   }
 

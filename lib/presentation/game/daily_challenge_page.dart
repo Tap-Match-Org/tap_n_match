@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:confetti/confetti.dart';
 import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 
@@ -13,7 +15,8 @@ class DailyChallengePage extends StatefulWidget {
   State<DailyChallengePage> createState() => _DailyChallengePageState();
 }
 
-class _DailyChallengePageState extends State<DailyChallengePage> with SingleTickerProviderStateMixin {
+class _DailyChallengePageState extends State<DailyChallengePage> with TickerProviderStateMixin {
+  late ConfettiController _confettiController;
   int userId = 1; // Default fallback
   bool isNewbie = true;
   int userStreak = 0;
@@ -38,6 +41,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
   @override
   void initState() {
     super.initState();
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
     _topSnackBarController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 280),
@@ -279,6 +283,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
 
   @override
   void dispose() {
+    _confettiController.dispose();
     _timer?.cancel();
     _topSnackBarTimer?.cancel();
     _topSnackBarEntry?.remove();
@@ -442,6 +447,10 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
   void _showResultDialog(bool won, {bool alreadyClaimed = false}) {
     setState(() => _isGameOver = true);
     
+    if (won) {
+      _confettiController.play();
+    }
+
     String failureMessage = "Try again next week!";
     bool canRetry = false;
     if (!won && !alreadyClaimed) {
@@ -561,6 +570,25 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
                 ],
               ),
             ),
+            // Celebratory Confetti
+            Align(
+              alignment: Alignment.topCenter,
+              child: ConfettiWidget(
+                confettiController: _confettiController,
+                blastDirectionality: BlastDirectionality.explosive,
+                shouldLoop: false,
+                colors: const [
+                  Colors.green,
+                  Colors.blue,
+                  Colors.pink,
+                  Colors.orange,
+                  Colors.purple,
+                  Colors.yellow,
+                  Colors.red,
+                ],
+                createParticlePath: _drawStar,
+              ),
+            ),
           ],
         ),
       ),
@@ -604,9 +632,12 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
             itemBuilder: (context, index) {
               return GestureDetector(
                 onTap: isInteractive
-                    ? () => setState(() {
-                        userGrid[index] = (userGrid[index] + 1) % 5; // Cycle through 0-4
-                      })
+                    ? () {
+                        soundManager.playTap();
+                        setState(() {
+                          userGrid[index] = (userGrid[index] + 1) % 5; // Cycle through 0-4
+                        });
+                      }
                     : null,
                 child: Container(
                   decoration: BoxDecoration(
@@ -614,6 +645,15 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(color: Colors.black, width: 2),
                   ),
+                  child: soundManager.colorblindMode
+                      ? Center(
+                          child: Icon(
+                            _getSymbolForValue(gridData[index]),
+                            size: 20,
+                            color: Colors.black.withOpacity(0.3),
+                          ),
+                        )
+                      : null,
                 ),
               );
             },
@@ -648,5 +688,44 @@ class _DailyChallengePageState extends State<DailyChallengePage> with SingleTick
       case 4: return Colors.yellow;
       default: return Colors.white;
     }
+  }
+
+  IconData? _getSymbolForValue(int value) {
+    switch (value) {
+      case 1:
+        return Icons.favorite;
+      case 2:
+        return Icons.cloud;
+      case 3:
+        return Icons.eco;
+      case 4:
+        return Icons.star;
+      default:
+        return null;
+    }
+  }
+
+  Path _drawStar(Size size) {
+    double degToRad(double deg) => deg * (pi / 180.0);
+
+    const numberOfPoints = 5;
+    final halfWidth = size.width / 2;
+    final externalRadius = halfWidth;
+    final internalRadius = halfWidth / 2.5;
+    final degreesPerStep = degToRad(360 / numberOfPoints);
+    final halfDegreesPerStep = degreesPerStep / 2;
+    final path = Path();
+    final fullAngle = degToRad(-90);
+
+    path.moveTo(size.width / 2, 0);
+
+    for (int step = 0; degToRad(step.toDouble()) < degToRad(360); step += (360 ~/ numberOfPoints)) {
+      path.lineTo(halfWidth + externalRadius * cos(degToRad(step.toDouble()) + fullAngle),
+          halfWidth + externalRadius * sin(degToRad(step.toDouble()) + fullAngle));
+      path.lineTo(halfWidth + internalRadius * cos(degToRad(step.toDouble()) + halfDegreesPerStep + fullAngle),
+          halfWidth + internalRadius * sin(degToRad(step.toDouble()) + halfDegreesPerStep + fullAngle));
+    }
+    path.close();
+    return path;
   }
 }

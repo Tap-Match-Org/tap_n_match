@@ -23,6 +23,8 @@ class _MainMenuPageState extends State<MainMenuPage>
   bool isNewbie = true;
   int userStreak = 0;
   int completedDailyChallenges = 0;
+  int bankedPoints = 0;
+  int lifetimePoints = 0;
   String selectedTheme = "#A9A9A9";
   bool challengeCompletedToday = false;
   late final AnimationController _menuController;
@@ -86,6 +88,8 @@ class _MainMenuPageState extends State<MainMenuPage>
           completedDailyChallenges = data['completed_daily_challenges'] ?? 0;
           isNewbie = completedDailyChallenges < 7;
           selectedTheme = data['selected_theme'] ?? "#A9A9A9";
+          bankedPoints = data['banked_points'] ?? 0;
+          lifetimePoints = data['lifetime_points'] ?? 0;
           
           // Check if challenge was completed today
           final String? lastChallengeDate = data['last_challenge_date'];
@@ -99,6 +103,7 @@ class _MainMenuPageState extends State<MainMenuPage>
         await soundManager.setBgMusicEnabled(data['bg_music_enabled'] ?? true);
         await soundManager.setTapVolume((data['tap_volume'] as num?)?.toDouble() ?? 1.0);
         await soundManager.setBgVolume((data['bg_volume'] as num?)?.toDouble() ?? 0.5);
+        await soundManager.setColorblindMode(data['colorblind_mode'] ?? false);
         
         await soundManager.updateSettings(
           tapSound: data['selected_tap_sound'],
@@ -288,65 +293,83 @@ class _MainMenuPageState extends State<MainMenuPage>
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(color: Colors.black, width: 4),
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'SETTINGS',
-                          style: GoogleFonts.pixelifySans(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'SETTINGS',
+                            style: GoogleFonts.pixelifySans(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        // Tap Sound Toggle
-                        _buildSettingsRow(
-                          'Tap Sound',
-                          Switch(
-                            value: soundManager.tapSoundEnabled,
-                            onChanged: (value) async {
-                              await soundManager.setTapSoundEnabled(value);
+                          const SizedBox(height: 20),
+                          // Tap Sound Toggle
+                          _buildSettingsRow(
+                            'Tap Sound',
+                            Switch(
+                              value: soundManager.tapSoundEnabled,
+                              onChanged: (value) async {
+                                await soundManager.setTapSoundEnabled(value);
+                                await soundManager.persistToServer(userId);
+                                setDialogState(() {});
+                              },
+                              activeColor: Colors.green,
+                            ),
+                          ),
+                          // Tap Volume Slider
+                          _buildVolumeSlider(
+                            'Tap Volume',
+                            soundManager.tapVolume,
+                            (value) async {
+                              await soundManager.setTapVolume(value);
                               await soundManager.persistToServer(userId);
                               setDialogState(() {});
                             },
-                            activeColor: Colors.green,
                           ),
-                        ),
-                        // Tap Volume Slider
-                        _buildVolumeSlider(
-                          'Tap Volume',
-                          soundManager.tapVolume,
-                          (value) async {
-                            await soundManager.setTapVolume(value);
-                            await soundManager.persistToServer(userId);
-                            setDialogState(() {});
-                          },
-                        ),
-                        const Divider(color: Colors.black54),
-                        // Music Toggle
-                        _buildSettingsRow(
-                          'Music',
-                          Switch(
-                            value: soundManager.bgMusicEnabled,
-                            onChanged: (value) async {
-                              await soundManager.setBgMusicEnabled(value);
+                          const Divider(color: Colors.black54),
+                          // Music Toggle
+                          _buildSettingsRow(
+                            'Music',
+                            Switch(
+                              value: soundManager.bgMusicEnabled,
+                              onChanged: (value) async {
+                                await soundManager.setBgMusicEnabled(value);
+                                await soundManager.persistToServer(userId);
+                                setDialogState(() {});
+                              },
+                              activeColor: Colors.green,
+                            ),
+                          ),
+                          // Music Volume Slider
+                          _buildVolumeSlider(
+                            'Music Volume',
+                            soundManager.bgVolume,
+                            (value) async {
+                              await soundManager.setBgVolume(value);
                               await soundManager.persistToServer(userId);
                               setDialogState(() {});
                             },
-                            activeColor: Colors.green,
                           ),
-                        ),
-                        // Music Volume Slider
-                        _buildVolumeSlider(
-                          'Music Volume',
-                          soundManager.bgVolume,
-                          (value) async {
-                            await soundManager.setBgVolume(value);
-                            await soundManager.persistToServer(userId);
-                            setDialogState(() {});
-                          },
-                        ),                      ],
+                          const Divider(color: Colors.black54),
+                          // Colorblind Mode Toggle
+                          _buildSettingsRow(
+                            'Colorblind Mode',
+                            Switch(
+                              value: soundManager.colorblindMode,
+                              onChanged: (value) async {
+                                await soundManager.setColorblindMode(value);
+                                await soundManager.persistToServer(userId);
+                                setDialogState(() {});
+                              },
+                              activeColor: Colors.blue,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                      ),
                     ),
                   ),
                   Positioned(
@@ -448,6 +471,12 @@ class _MainMenuPageState extends State<MainMenuPage>
           label: 'Ranks',
           colors: [const Color(0xFF98EE99), const Color(0xFF2FBF71)],
           phase: 1.7,
+        );
+      case '/shop':
+        return (
+          label: 'Shop',
+          colors: [const Color(0xFFFF9A8B), const Color(0xFFFF6A88)],
+          phase: 2.1,
         );
       case '/theme':
       default:
@@ -775,14 +804,14 @@ class _MainMenuPageState extends State<MainMenuPage>
     int badgeCount = 0,
   }) {
     final style = _sidebarStyleForRoute(route);
-    final double tileSize = isLandscape ? 58 : 64;
-    final double iconSize = isLandscape ? 24 : 27;
+    final double tileSize = isLandscape ? 52 : 58;
+    final double iconSize = isLandscape ? 20 : 23;
 
     return AnimatedBuilder(
       animation: _menuController,
       builder: (context, child) {
         final progress = Curves.easeInOut.transform(_menuController.value);
-        final bob = math.sin((progress * 2 * math.pi) + style.phase) * (isLandscape ? 1.4 : 2.0);
+        final bob = math.sin((progress * 2 * math.pi) + style.phase) * (isLandscape ? 1.0 : 1.4);
         final glowStrength = 0.18 + (math.sin((progress * 2 * math.pi) + style.phase) + 1) * 0.08;
 
         return Transform.translate(
@@ -794,20 +823,20 @@ class _MainMenuPageState extends State<MainMenuPage>
                 onTap: () => _openSidebarRoute(route),
                 child: Container(
                   width: tileSize,
-                  padding: const EdgeInsets.all(5),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: style.colors,
                     ),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: Colors.black, width: 2.4),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.black, width: 2.0),
                     boxShadow: [
                       BoxShadow(
                         color: style.colors.first.withOpacity(glowStrength),
-                        blurRadius: 14,
-                        offset: const Offset(0, 5),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -817,38 +846,39 @@ class _MainMenuPageState extends State<MainMenuPage>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Colors.white.withOpacity(0.45),
-                          Colors.white.withOpacity(0.08),
+                          Colors.white.withOpacity(0.40),
+                          Colors.white.withOpacity(0.06),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.black.withOpacity(0.35), width: 1.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.black.withOpacity(0.3), width: 1.0),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: iconSize + 16,
-                          height: iconSize + 16,
+                          width: iconSize + 12,
+                          height: iconSize + 12,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.30),
-                            border: Border.all(color: Colors.black.withOpacity(0.6), width: 1.4),
+                            color: Colors.white.withOpacity(0.25),
+                            border: Border.all(color: Colors.black.withOpacity(0.5), width: 1.2),
                           ),
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
-                              Icon(icon, color: Colors.black.withOpacity(0.70), size: iconSize + 3),
+                              Icon(icon, color: Colors.black.withOpacity(0.60), size: iconSize + 2),
                               Icon(icon, color: Colors.white, size: iconSize),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Text(
                           style.label,
                           textAlign: TextAlign.center,
                           style: GoogleFonts.pixelifySans(
-                            fontSize: isLandscape ? 8.5 : 9.5,
+                            fontSize: isLandscape ? 7.5 : 8.5,
                             fontWeight: FontWeight.bold,
                             color: Colors.black,
                             shadows: const [
@@ -863,18 +893,18 @@ class _MainMenuPageState extends State<MainMenuPage>
               ),
               if (badgeCount > 0)
                 Positioned(
-                  right: -6,
-                  top: -6,
+                  right: -4,
+                  top: -4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.red,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white, width: 1.5),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1.2),
                     ),
                     child: Text(
                       badgeCount > 9 ? '9+' : badgeCount.toString(),
-                      style: GoogleFonts.pixelifySans(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                      style: GoogleFonts.pixelifySans(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -907,7 +937,7 @@ class _MainMenuPageState extends State<MainMenuPage>
               child: Column(
                 children: [
                   _buildSidebarIcon(context, Icons.account_circle, '/profile', isLandscape),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 8),
                   _buildSidebarIcon(
                     context,
                     Icons.emoji_events,
@@ -915,9 +945,11 @@ class _MainMenuPageState extends State<MainMenuPage>
                     isLandscape,
                     badgeCount: _claimableRewardCount,
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 8),
                   _buildSidebarIcon(context, Icons.leaderboard, '/leaderboards', isLandscape),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 8),
+                  _buildSidebarIcon(context, Icons.shopping_cart, '/shop', isLandscape),
+                  const SizedBox(height: 8),
                   _buildSidebarIcon(context, Icons.palette, '/theme', isLandscape),
                 ],
               ),
@@ -927,29 +959,57 @@ class _MainMenuPageState extends State<MainMenuPage>
             Positioned(
               right: 20,
               top: 25,
-              child: GestureDetector(
-                onTap: _showSettingsDialog,
-                child: Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.72),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.black, width: 2),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 6,
-                        offset: Offset(0, 2),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.72),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.black, width: 2),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.stars, color: Colors.orange, size: 18),
+                        const SizedBox(width: 6),
+                        Text(
+                          bankedPoints.toString(),
+                          style: GoogleFonts.pixelifySans(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: _showSettingsDialog,
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.72),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.black, width: 2),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
                       ),
-                    ],
+                      child: const Icon(
+                        Icons.settings_rounded,
+                        color: Colors.black87,
+                        size: 24,
+                      ),
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.settings_rounded,
-                    color: Colors.black87,
-                    size: 24,
-                  ),
-                ),
+                ],
               ),
             ),
 

@@ -284,7 +284,7 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
                           children: [
                             _buildHeaderText("RANKING"),
                             _buildHeaderText("PLAYER NAME"),
-                            _buildHeaderText("HIGHEST SCORE"),
+                            _buildHeaderText("LIFETIME POINTS"),
                             _buildHeaderText("HIGHEST LEVEL"),
                             _buildHeaderText("ACHIEVEMENTS"),
                           ],

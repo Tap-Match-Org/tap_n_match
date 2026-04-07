@@ -7,6 +7,7 @@ import '../presentation/personal_feature/profile.dart';
 import '../presentation/personal_feature/achievement.dart';
 import '../presentation/community_features/leaderboards.dart';
 import '../presentation/personal_feature/theme.dart';
+import '../presentation/shop/shop_page.dart';
 import '../presentation/auth/banned_page.dart';
 import '../presentation/game/daily_challenge_page.dart';
 import '../presentation/game/play.dart';
@@ -42,6 +43,7 @@ class AppRoutes {
     achievements: (context) => const AchievementPage(),
     leaderboards: (context) => const LeaderboardsPage(),
     theme: (context) => const ThemePage(),
+    '/shop': (context) => const ShopPage(),
     game: (context) => const GamePage(),
     dailyChallenge: (context) => const DailyChallengePage(),
     '/support': (context) {
