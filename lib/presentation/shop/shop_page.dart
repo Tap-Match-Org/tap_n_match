@@ -21,7 +21,7 @@ class _ShopPageState extends State<ShopPage> {
   List<String> unlockedBgMusic = [];
   bool isLoading = true;
   bool _didInitialize = false;
-  int activeTab = 0; // 0: Themes, 1: Backgrounds, 2: Tap Sounds, 3: Music
+  int activeTab = 0; 
 
   final List<Map<String, dynamic>> themeItems = [
     {"id": "#50C878", "name": "Emerald", "price": 500, "type": "theme"},
@@ -33,22 +33,22 @@ class _ShopPageState extends State<ShopPage> {
   ];
 
   final List<Map<String, dynamic>> backgroundItems = [
-    {"id": "asset:assets/background/minecraft_bgColor.jpg", "name": "MC Grass", "price": 1500, "type": "theme"},
+    {"id": "asset:assets/background/minecraft_bgColor.jpg", "name": "Minecraft Grass", "price": 1500, "type": "theme"},
     {"id": "asset:assets/background/genshin_background.jpeg", "name": "Genshin", "price": 2000, "type": "theme"},
-    {"id": "asset:assets/background/harvest_moon_background.jpeg", "name": "Harvest", "price": 1800, "type": "theme"},
-    {"id": "asset:assets/background/snowfall_background.jpeg", "name": "Snowfall", "price": 2500, "type": "theme"},
+    {"id": "asset:assets/background/harvest_moon_background.jpeg", "name": "Harvest Moon", "price": 1800, "type": "theme"},
+    {"id": "asset:assets/background/snowfall_background.jpeg", "name": "SnowFall", "price": 2500, "type": "theme"},
   ];
 
   final List<Map<String, dynamic>> tapSoundItems = [
-    {"id": "audio/tap_sounds/minecraft_tap_sound.mp3", "name": "MC Tap", "price": 800, "type": "tap_sound"},
+    {"id": "audio/tap_sounds/minecraft_tap_sound.mp3", "name": "Minecraft Tap", "price": 800, "type": "tap_sound"},
     {"id": "audio/tap_sounds/genshin_tap_sound.mp3", "name": "Genshin", "price": 1200, "type": "tap_sound"},
-    {"id": "audio/tap_sounds/snowfall_tap_sound.mp3", "name": "Snowfall", "price": 1500, "type": "tap_sound"},
+    {"id": "audio/tap_sounds/snowfall_tap_sound.mp3", "name": "SnowFall", "price": 1500, "type": "tap_sound"},
   ];
 
   final List<Map<String, dynamic>> musicItems = [
-    {"id": "audio/background_music/minecraft_bgMusic.mp3", "name": "MC Theme", "price": 2000, "type": "bg_music"},
+    {"id": "audio/background_music/minecraft_bgMusic.mp3", "name": "Minecraft", "price": 2000, "type": "bg_music"},
     {"id": "audio/background_music/genshin_bgMusic.mp3", "name": "Genshin", "price": 3000, "type": "bg_music"},
-    {"id": "audio/background_music/harvest_moon_bgMusic.mp3", "name": "Harvest", "price": 2500, "type": "bg_music"},
+    {"id": "audio/background_music/harvest_moon_bgMusic.mp3", "name": "Harvest Moon", "price": 2500, "type": "bg_music"},
     {"id": "audio/background_music/snowfall_bgMusic.mp3", "name": "Snowfall", "price": 3500, "type": "bg_music"},
   ];
 
@@ -121,22 +121,6 @@ class _ShopPageState extends State<ShopPage> {
           }
         });
         soundManager.playTap();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Unlocked ${item['name']}!', style: GoogleFonts.pixelifySans()),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      } else {
-        final error = jsonDecode(response.body)['detail'];
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error, style: GoogleFonts.pixelifySans()),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
       }
     } catch (e) {
       debugPrint('Error buying item: $e');
@@ -152,133 +136,179 @@ class _ShopPageState extends State<ShopPage> {
         width: double.infinity,
         height: double.infinity,
         decoration: buildThemeDecoration(selectedTheme),
-        child: Stack(
-          children: [
-            // BACK BUTTON
-            Positioned(
-              left: 20,
-              top: 20,
-              child: GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade400,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.black, width: 2),
-                  ),
-                  child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 22),
-                ),
-              ),
+        child: Center(
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.95,
+            height: isLandscape ? MediaQuery.of(context).size.height * 0.9 : 620,
+            decoration: BoxDecoration(
+              color: const Color(0xFFD9D9D9),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.black, width: 3),
             ),
-
-            // MAIN SHOP PANEL
-            Center(
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.9,
-                height: isLandscape ? MediaQuery.of(context).size.height * 0.85 : 620,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD9D9D9),
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: Colors.black, width: 3),
-                ),
-                child: Column(
-                  children: [
-                    // HEADER ROW (Point balance moved inside header)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFAEC6FF),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                          topRight: Radius.circular(12),
-                        ),
-                        border: Border(bottom: BorderSide(color: Colors.black, width: 3)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Expanded(child: SizedBox()), // Spacer
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              'Point Shop',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.pixelifySans(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFFFCA016),
-                                shadows: [const Shadow(offset: Offset(2, 2), color: Colors.black)],
-                              ),
-                            ),
-                          ),
-                          // BALANCE DISPLAY INSIDE HEADER
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.9),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.black, width: 1.5),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.stars, color: Colors.orange, size: 16),
-                                  const SizedBox(width: 4),
-                                  Flexible(
-                                    child: Text(
-                                      bankedPoints.toString(),
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.pixelifySans(
-                                          fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+            child: Column(
+              children: [
+                // HEADER
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFAEC6FF),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
                     ),
-
-                    // TAB SELECTOR (4 TABS)
-                    Container(
-                      color: const Color(0xFFBBD5FF),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
+                    border: Border(bottom: BorderSide(color: Colors.black, width: 3)),
+                  ),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.black, width: 2),
+                          ),
+                          child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 18),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          'Point Shop',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.pixelifySans(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFFFCA016),
+                            shadows: [const Shadow(offset: Offset(2, 2), color: Colors.black)],
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.black, width: 1.5),
+                        ),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const SizedBox(width: 10),
-                            _buildTabButton('Themes', 0),
-                            const SizedBox(width: 10),
-                            _buildTabButton('BGs', 1),
-                            const SizedBox(width: 10),
-                            _buildTabButton('Taps', 2),
-                            const SizedBox(width: 10),
-                            _buildTabButton('Music', 3),
-                            const SizedBox(width: 10),
+                            const Icon(Icons.stars, color: Colors.orange, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              bankedPoints.toString(),
+                              style: GoogleFonts.pixelifySans(
+                                  fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
+                            ),
                           ],
                         ),
                       ),
-                    ),
-
-                    // SHOP CONTENT
-                    Expanded(
-                      child: isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: _buildItemGrid(_getCurrentItems()),
-                            ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+
+                // CONTENT AREA
+                Expanded(
+                  child: Row(
+                    children: [
+                      // SIDEBAR
+                      Container(
+                        width: 120,
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Color(0xFF8DA9E6), Color(0xFFBBD5FF)],
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                          ),
+                          border: Border(right: BorderSide(color: Colors.black, width: 3)),
+                        ),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          child: Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 15),
+                                child: Text(
+                                  'CATEGORIES',
+                                  style: GoogleFonts.pixelifySans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black54,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ),
+                              _buildSidebarButton('Themes', Icons.palette, 0),
+                              _buildSidebarButton('BGs', Icons.image, 1),
+                              _buildSidebarButton('Taps', Icons.touch_app, 2),
+                              _buildSidebarButton('Music', Icons.music_note, 3),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // SHOP GRID
+                      Expanded(
+                        child: isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: _buildItemGrid(_getCurrentItems()),
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarButton(String label, IconData icon, int index) {
+    bool isActive = activeTab == index;
+    return GestureDetector(
+      onTap: () {
+        setState(() => activeTab = index);
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: isActive ? 100 : 80,
+            height: 50,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: isActive ? const Color(0xFFFCA016) : Colors.white70,
+              borderRadius: const BorderRadius.only(
+                topRight: Radius.circular(15),
+                bottomRight: Radius.circular(15),
+              ),
+              border: Border.all(color: Colors.black, width: 2),
+            ),
+            child: Row(
+              mainAxisAlignment: isActive ? MainAxisAlignment.start : MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: isActive ? Colors.white : Colors.black87, size: 22),
+                if (isActive) ...[
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: GoogleFonts.pixelifySans(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -294,37 +324,17 @@ class _ShopPageState extends State<ShopPage> {
     }
   }
 
-  Widget _buildTabButton(String label, int index) {
-    bool isActive = activeTab == index;
-    return GestureDetector(
-      onTap: () => setState(() => activeTab = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFFFCA016) : Colors.white70,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.black, width: 2),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.pixelifySans(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: isActive ? Colors.white : Colors.black,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildItemGrid(List<Map<String, dynamic>> items) {
+    // Check if the current category is BGs (index 1)
+    bool isBGsTab = activeTab == 1;
+
     return GridView.builder(
-      padding: const EdgeInsets.all(5),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.72,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        // Use 3 columns for big BG previews, 5 for smaller icons/themes
+        crossAxisCount: isBGsTab ? 3 : 5, 
+        childAspectRatio: isBGsTab ? 0.85 : 0.75,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {
@@ -340,49 +350,65 @@ class _ShopPageState extends State<ShopPage> {
 
         return Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.85),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.black, width: 1.5),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.black, width: 2),
+            boxShadow: [const BoxShadow(offset: Offset(3, 3), color: Colors.black12)],
           ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildItemPreview(item),
-              const SizedBox(height: 5),
-              Text(
-                item['name'],
-                textAlign: TextAlign.center,
-                style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold, fontSize: 10),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(6.0),
+                  child: Center(child: _buildItemPreview(item)),
+                ),
               ),
-              const SizedBox(height: 5),
-              isUnlocked
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.green.shade400, borderRadius: BorderRadius.circular(6)),
-                      child: Text('OWNED', style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 8)),
-                    )
-                  : GestureDetector(
-                      onTap: () => _buyItem(item),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFCA016),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.black, width: 1),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.stars, size: 9, color: Colors.white),
-                            const SizedBox(width: 2),
-                            Text(
-                              item['price'].toString(),
-                              style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.only(bottomLeft: Radius.circular(10), bottomRight: Radius.circular(10)),
+                  border: Border(top: BorderSide(color: Colors.black, width: 1.5)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      item['name'],
+                      style: GoogleFonts.pixelifySans(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: isBGsTab ? 13 : 10 // Smaller text for smaller boxes
                       ),
+                      textAlign: TextAlign.center,
                     ),
+                    const SizedBox(height: 2),
+                    isUnlocked 
+                      ? Text('OWNED', style: GoogleFonts.pixelifySans(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.bold))
+                      : GestureDetector(
+                          onTap: () => _buyItem(item),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFCA016),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.black, width: 1),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.stars, size: 10, color: Colors.white),
+                                const SizedBox(width: 2),
+                                Text(
+                                  item['price'].toString(), 
+                                  style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                  ],
+                ),
+              ),
             ],
           ),
         );
@@ -391,33 +417,41 @@ class _ShopPageState extends State<ShopPage> {
   }
 
   Widget _buildItemPreview(Map<String, dynamic> item) {
+    bool isBGsTab = activeTab == 1;
+    double iconSize = isBGsTab ? 50 : 35; // Dynamically resize preview content
+
     if (item['type'] == 'theme') {
       final id = item['id'] as String;
       if (id.startsWith('asset:')) {
-        return Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: Colors.black54),
-            image: DecorationImage(image: AssetImage(id.replaceFirst('asset:', '')), fit: BoxFit.cover),
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.asset(
+            id.replaceFirst('asset:', ''),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
           ),
         );
       } else {
         return Container(
-          width: 40,
-          height: 40,
+          width: iconSize,
+          height: iconSize,
           decoration: BoxDecoration(
             color: Color(int.parse(id.replaceFirst('#', '0xFF'))),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: Colors.black54),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.black, width: 2),
           ),
         );
       }
-    } else if (item['type'] == 'tap_sound') {
-      return const Icon(Icons.touch_app_rounded, size: 35, color: Color(0xFFAEC6FF));
     } else {
-      return const Icon(Icons.music_note_rounded, size: 35, color: Color(0xFF2FBF71));
+      IconData icon = item['type'] == 'tap_sound' ? Icons.touch_app_rounded : Icons.music_note_rounded;
+      Color color = item['type'] == 'tap_sound' ? const Color(0xFFAEC6FF) : const Color(0xFF2FBF71);
+      return Container(
+        width: iconSize,
+        height: iconSize,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Colors.black, width: 1.5)),
+        child: Icon(icon, size: iconSize * 0.6, color: Colors.white),
+      );
     }
   }
 }
