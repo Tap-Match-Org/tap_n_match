@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/theme_background.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
 import 'package:tap_n_match/core/tutorial_progress.dart';
+import 'package:tap_n_match/core/api_config.dart';
 
 class LeaderboardsPage extends StatefulWidget {
   const LeaderboardsPage({super.key});
@@ -49,7 +50,7 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
 
   Future<void> _loadUserData() async {
     try {
-      final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
+      final response = await http.get(ApiConfig.getUri('/users/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         if (mounted) {
@@ -66,7 +67,7 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
 
   Future<void> _loadLeaderboards() async {
     try {
-      final response = await http.get(Uri.parse('http://localhost:8000/leaderboards'));
+      final response = await http.get(ApiConfig.getUri('/leaderboards'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final rawPlayers = (data['players'] as List<dynamic>? ?? []);

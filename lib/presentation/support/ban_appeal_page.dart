@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/core/api_config.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 
 class BanAppealPage extends StatefulWidget {
@@ -45,7 +46,7 @@ class _BanAppealPageState extends State<BanAppealPage> {
     setState(() => _isLoading = true);
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:8000/appeals'),
+        ApiConfig.getUri('/appeals'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,

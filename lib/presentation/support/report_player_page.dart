@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/core/api_config.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 
 class ReportPlayerPage extends StatefulWidget {
@@ -48,7 +49,7 @@ class _ReportPlayerPageState extends State<ReportPlayerPage> {
     setState(() => _isLoading = true);
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:8000/reports'),
+        ApiConfig.getUri('/reports'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'reporter_id': widget.userId,

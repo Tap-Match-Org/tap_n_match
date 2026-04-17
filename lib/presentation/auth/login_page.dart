@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/persistence_service.dart';
+import 'package:tap_n_match/core/api_config.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -54,13 +55,14 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:8000/login'),
+        ApiConfig.getUri('/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': username,
           'password': password,
         }),
       );
+
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

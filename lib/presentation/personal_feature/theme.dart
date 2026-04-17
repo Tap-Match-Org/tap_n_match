@@ -7,6 +7,7 @@ import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
 import 'package:tap_n_match/core/tutorial_progress.dart';
+import 'package:tap_n_match/core/api_config.dart';
 const String _defaultThemeKey = '#A9A9A9';
 const String _defaultTapSoundAsset = 'audio/tap_sounds/default_tapSounds.mp3';
 const String _defaultBgMusicAsset = 'audio/background_music/stal_default.mp3';
@@ -131,7 +132,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
 
   Future<void> _fetchUserData() async {
     try {
-      final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
+      final response = await http.get(ApiConfig.getUri('/users/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final colors = (data['unlocked_themes'] as List<dynamic>?)
@@ -294,9 +295,10 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     if (seenRewards.contains(id)) return;
     
     try {
-      final response = await http.put(
-        Uri.parse('http://localhost:8000/mark-reward-seen/$userId/${Uri.encodeComponent(id)}'),
+      final response = await http.post(
+        ApiConfig.getUri('/mark-reward-seen/$userId/${Uri.encodeComponent(id)}'),
       );
+
       if (response.statusCode == 200) {
         setState(() {
           seenRewards.add(id);
@@ -312,8 +314,9 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     _markAsSeen(trimmedKey);
     try {
       final response = await http.put(
-        Uri.parse('http://localhost:8000/select-theme/$userId?theme_color=${Uri.encodeComponent(trimmedKey)}'),
+        ApiConfig.getUri('/select-theme/$userId?theme_color=${Uri.encodeComponent(trimmedKey)}'),
       );
+
       if (response.statusCode == 200) {
         if (!mounted) return;
         setState(() => selectedTheme = trimmedKey);
@@ -328,9 +331,10 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     final trimmedPath = assetPath.trim();
     _markAsSeen(trimmedPath);
     try {
-      final response = await http.put(Uri.parse(
-        'http://localhost:8000/select-tap-sound/$userId?asset_path=${Uri.encodeComponent(trimmedPath)}',
-      ));
+      final response = await http.put(
+        ApiConfig.getUri('/select-tap-sound/$userId?asset_path=${Uri.encodeComponent(trimmedPath)}'),
+      );
+
       if (response.statusCode == 200) {
         await soundManager.setSelectedTapSound(trimmedPath);
         await soundManager.playTap();
@@ -347,9 +351,10 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     final trimmedPath = assetPath.trim();
     _markAsSeen(trimmedPath);
     try {
-      final response = await http.put(Uri.parse(
-        'http://localhost:8000/select-bg-music/$userId?asset_path=${Uri.encodeComponent(trimmedPath)}',
-      ));
+      final response = await http.put(
+        ApiConfig.getUri('/select-bg-music/$userId?asset_path=${Uri.encodeComponent(trimmedPath)}'),
+      );
+
       if (response.statusCode == 200) {
         await soundManager.setSelectedBgMusic(trimmedPath);
         if (!mounted) return;
@@ -378,6 +383,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
           left: 16,
           right: 16,
           child: IgnorePointer(
+            ignoring: true,
             child: AnimatedBuilder(
               animation: animation,
               builder: (context, child) {

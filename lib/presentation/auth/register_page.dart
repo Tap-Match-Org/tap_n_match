@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:tap_n_match/core/api_config.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -46,7 +47,7 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() => _isSendingCode = true);
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:8000/send-code'), // localhost for Chrome
+        ApiConfig.getUri('/send-code'), // localhost for Chrome
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({"email": _emailController.text}),
       );
@@ -70,7 +71,7 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() => _isLoading = true);
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:8000/register'), // localhost for Chrome
+        ApiConfig.getUri('/register'), // localhost for Chrome
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "username": _usernameController.text,
