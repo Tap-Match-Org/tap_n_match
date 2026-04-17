@@ -278,7 +278,7 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
                       // TABLE HEADERS
                       Container(
                         key: _headerRowKey,
-                        color: const Color(0xFFAEC6FF).withOpacity(0.5),
+                        color: const Color(0xFFAEC6FF).withValues(alpha: 0.5),
                         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -394,7 +394,7 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isCurrentUser ? const Color(0xFFFCA016).withOpacity(0.35) : const Color(0xFFAEC6FF),
+          color: isCurrentUser ? const Color(0xFFFCA016).withValues(alpha: 0.35) : const Color(0xFFAEC6FF),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: Colors.black, width: 1.5),
         ),

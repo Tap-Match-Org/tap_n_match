@@ -37,7 +37,6 @@ class AchievementList extends StatelessWidget {
     final String id = achievement['id'] as String? ?? '';
     final String title = achievement['title'] as String? ?? 'Untitled';
     final String description = achievement['description'] as String? ?? '';
-    final String rewardLabel = achievement['reward_label'] as String? ?? '';
     final String rewardName = achievement['reward_name'] as String? ?? '';
     final bool isUnlocked = achievement['is_unlocked'] == true;
     final bool isClaimed = achievement['is_claimed'] == true;
@@ -86,7 +85,7 @@ class AchievementList extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.92),
+        color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black, width: 2),
         boxShadow: const [
@@ -131,9 +130,9 @@ class AchievementList extends StatelessWidget {
                 width: 100,
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.black.withOpacity(0.1), width: 1),
+                  border: Border.all(color: Colors.black.withValues(alpha: 0.1), width: 1),
                 ),
                 child: Column(
                   children: [
@@ -174,7 +173,7 @@ class AchievementList extends StatelessWidget {
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: Colors.black.withOpacity(0.2), width: 0.5),
+                    border: Border.all(color: Colors.black.withValues(alpha: 0.2), width: 0.5),
                   ),
                   child: LinearProgressIndicator(
                     value: progress,

@@ -393,7 +393,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
                             await soundManager.persistToServer(userId);
                             setDialogState(() {});
                           },
-                          activeColor: Colors.green,
+                          activeThumbColor: Colors.green,
                         ),
                         ],
                         ),
@@ -419,7 +419,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
                             await soundManager.persistToServer(userId);
                             setDialogState(() {});
                           },
-                          activeColor: Colors.green,
+                          activeThumbColor: Colors.green,
                         ),
                         ],
                         ),
@@ -445,7 +445,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
                                 await soundManager.persistToServer(userId);
                                 setDialogState(() {});
                               },
-                              activeColor: Colors.blue,
+                              activeThumbColor: Colors.blue,
                             ),
                           ],
                         ),                  ],
@@ -1145,7 +1145,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
       key: _scoreBarKey,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.92),
+        color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black, width: 2),
         boxShadow: const [
@@ -1235,7 +1235,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
                               child: Icon(
                                 _getSymbolForValue(gridData[index]),
                                 size: boxSize * 0.6,
-                                color: Colors.black.withOpacity(0.3),
+                                color: Colors.black.withValues(alpha: 0.3),
                               ),
                             )
                           : null,

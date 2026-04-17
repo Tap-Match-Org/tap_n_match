@@ -61,7 +61,7 @@ class _PlayerFeedbackPageState extends State<PlayerFeedbackPage> {
           _feedbackController.clear();
           _errorMessage = null;
         });
-        Future.delayed(const Duration(seconds: 2), () => Navigator.pop(context));
+        Future.delayed(const Duration(seconds: 2), () { if (mounted) Navigator.pop(context); });
       } else {
         setState(() => _errorMessage = 'Failed to submit feedback');
       }
@@ -215,3 +215,5 @@ class _PlayerFeedbackPageState extends State<PlayerFeedbackPage> {
     );
   }
 }
+
+

@@ -310,7 +310,7 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.15),
+          color: color.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color, width: 2),
         ),
@@ -357,3 +357,5 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
     );
   }
 }
+
+

@@ -60,7 +60,9 @@ class _BanAppealPageState extends State<BanAppealPage> {
           _appealController.clear();
           _errorMessage = null;
         });
-        Future.delayed(const Duration(seconds: 3), () => Navigator.pop(context));
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) Navigator.pop(context);
+        });
       } else {
         setState(() => _errorMessage = 'Failed to submit appeal');
       }
@@ -245,3 +247,5 @@ class _BanAppealPageState extends State<BanAppealPage> {
     );
   }
 }
+
+

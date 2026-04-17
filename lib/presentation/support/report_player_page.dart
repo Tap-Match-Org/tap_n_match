@@ -65,7 +65,7 @@ class _ReportPlayerPageState extends State<ReportPlayerPage> {
           _reasonController.clear();
           _errorMessage = null;
         });
-        Future.delayed(const Duration(seconds: 2), () => Navigator.pop(context));
+        Future.delayed(const Duration(seconds: 2), () { if (mounted) Navigator.pop(context); });
       } else {
         setState(() => _errorMessage = 'Failed to submit report');
       }
@@ -231,3 +231,5 @@ class _ReportPlayerPageState extends State<ReportPlayerPage> {
     );
   }
 }
+
+

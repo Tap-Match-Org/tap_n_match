@@ -87,7 +87,7 @@ class _BugReportPageState extends State<BugReportPage> {
           _selectedFile = null;
           _errorMessage = null;
         });
-        Future.delayed(const Duration(seconds: 2), () => Navigator.pop(context));
+        Future.delayed(const Duration(seconds: 2), () { if (mounted) Navigator.pop(context); });
       } else {
         setState(() => _errorMessage = 'Failed to submit bug report');
       }
@@ -292,3 +292,5 @@ class _BugReportPageState extends State<BugReportPage> {
     );
   }
 }
+
+

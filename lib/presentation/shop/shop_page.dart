@@ -223,7 +223,7 @@ class _ShopPageState extends State<ShopPage> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.black, width: 1.5),
                         ),
@@ -384,7 +384,7 @@ class _ShopPageState extends State<ShopPage> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.black, width: 2),
-            boxShadow: [const BoxShadow(offset: Offset(3, 3), color: Colors.black12)],
+            boxShadow: const [BoxShadow(offset: Offset(3, 3), color: Colors.black12)],
           ),
           child: Column(
             children: [
