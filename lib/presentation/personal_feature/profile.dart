@@ -12,6 +12,7 @@ import 'package:tap_n_match/core/theme_background.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
 import 'package:tap_n_match/core/tutorial_progress.dart';
 import 'package:tap_n_match/core/persistence_service.dart';
+import 'package:tap_n_match/core/api_config.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -83,9 +84,9 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _loadProfileData() async {
     try {
       final userEndpoint = isPublicProfile
-          ? 'http://localhost:8000/public-users/$userId'
-          : 'http://localhost:8000/users/$userId';
-      final userResponse = await http.get(Uri.parse(userEndpoint));
+          ? ApiConfig.getUri('/public-users/$userId')
+          : ApiConfig.getUri('/users/$userId');
+      final userResponse = await http.get(userEndpoint);
       Map<String, dynamic>? userData;
       if (userResponse.statusCode == 200) {
         userData = jsonDecode(userResponse.body) as Map<String, dynamic>;
@@ -104,7 +105,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       List<Map<String, dynamic>> players = [];
       try {
-        final leaderboardResponse = await http.get(Uri.parse('http://localhost:8000/leaderboards'));
+        final leaderboardResponse = await http.get(ApiConfig.getUri('/leaderboards'));
         if (leaderboardResponse.statusCode == 200) {
           final data = jsonDecode(leaderboardResponse.body) as Map<String, dynamic>;
           final rawPlayers = (data['players'] as List<dynamic>? ?? []);
@@ -580,7 +581,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     final response = await http.put(
-      Uri.parse('http://localhost:8000/update-profile-picture/$userId'),
+      ApiConfig.getUri('/update-profile-picture/$userId'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'profile_picture': base64Encode(bytes)}),
     );
@@ -739,7 +740,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<String> _submitUsernameChange(String value) async {
     final response = await http.put(
-      Uri.parse('http://localhost:8000/update-username/$userId'),
+      ApiConfig.getUri('/update-username/$userId'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'username': value}),
     );
@@ -761,7 +762,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<String> _submitPasswordChange(String value) async {
     final response = await http.put(
-      Uri.parse('http://localhost:8000/update-password/$userId'),
+      ApiConfig.getUri('/update-password/$userId'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'password': value}),
     );
@@ -775,7 +776,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<String> _submitEmailChange(String value) async {
     final response = await http.put(
-      Uri.parse('http://localhost:8000/update-email/$userId'),
+      ApiConfig.getUri('/update-email/$userId'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': value}),
     );
@@ -841,7 +842,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (confirmed != true) return;
 
-    final response = await http.post(Uri.parse('http://localhost:8000/reset-account/$userId'));
+    final response = await http.post(ApiConfig.getUri('/reset-account/$userId'));
     if (response.statusCode != 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       _showSnack(data['detail'] ?? 'Failed to reset account.');

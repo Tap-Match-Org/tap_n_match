@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
+import 'package:tap_n_match/core/api_config.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 
 class BugReportPage extends StatefulWidget {
@@ -70,7 +71,7 @@ class _BugReportPageState extends State<BugReportPage> {
       }
 
       final response = await http.post(
-        Uri.parse('http://localhost:8000/support/tickets'),
+        ApiConfig.getUri('/support/tickets'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,

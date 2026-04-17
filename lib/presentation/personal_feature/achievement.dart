@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/theme_background.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
 import 'package:tap_n_match/core/tutorial_progress.dart';
+import 'package:tap_n_match/core/api_config.dart';
 import 'achievement_list.dart'; 
 
 class AchievementPage extends StatefulWidget {
@@ -48,7 +49,7 @@ class _AchievementPageState extends State<AchievementPage> {
   Future<void> _loadUserData() async {
     setState(() => _isLoadingTheme = true);
     try {
-      final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
+      final response = await http.get(ApiConfig.getUri('/users/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         if (!mounted) return;
@@ -168,7 +169,7 @@ class _AchievementPageState extends State<AchievementPage> {
   Future<void> _loadAchievements() async {
     setState(() => _isLoadingAchievements = true);
     try {
-      final response = await http.get(Uri.parse('http://localhost:8000/achievements/$userId'));
+      final response = await http.get(ApiConfig.getUri('/achievements/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final rawList = (data['achievements'] as List<dynamic>?) ?? [];
@@ -194,7 +195,7 @@ class _AchievementPageState extends State<AchievementPage> {
     setState(() => _claimingId = achievementId);
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:8000/claim-achievement/$userId/$achievementId'),
+        ApiConfig.getUri('/claim-achievement/$userId/$achievementId'),
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

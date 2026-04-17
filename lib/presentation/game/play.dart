@@ -11,7 +11,8 @@ import 'package:tap_n_match/core/tutorial_overlay.dart';
 import 'package:tap_n_match/core/tutorial_progress.dart';
 
 class GamePage extends StatefulWidget {
-  const GamePage({super.key});
+  final http.Client? httpClient;
+  const GamePage({super.key, this.httpClient});
 
   @override
   State<GamePage> createState() => _GamePageState();
@@ -54,11 +55,15 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
   Timer? _topSnackBarTimer;
   OverlayEntry? _topSnackBarEntry;
   late final AnimationController _topSnackBarController;
+  late final http.Client _client;
+  late final bool _ownsClient;
   String _topSnackBarMessage = "";
 
   @override
   void initState() {
     super.initState();
+    _ownsClient = widget.httpClient == null;
+    _client = widget.httpClient ?? http.Client();
     _confettiController = ConfettiController(duration: const Duration(seconds: 2));
     _topSnackBarController = AnimationController(
       vsync: this,
@@ -126,7 +131,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
 
   Future<void> _loadUserData() async {
     try {
-      final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
+      final response = await _client.get(Uri.parse('http://localhost:8000/users/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _hasPendingPlayTutorial = hasPendingTutorial(
@@ -599,7 +604,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     };
 
     try {
-      final response = await http.put(
+      final response = await _client.put(
         Uri.parse('http://localhost:8000/complete-level/$userId'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
@@ -976,6 +981,9 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     _topSnackBarTimer?.cancel();
     _topSnackBarEntry?.remove();
     _topSnackBarController.dispose();
+    if (_ownsClient) {
+      _client.close();
+    }
     super.dispose();
   }
 
@@ -1346,4 +1354,5 @@ class _DifficultyConfig {
     required this.time,
     required this.label,
   });
+  
 }

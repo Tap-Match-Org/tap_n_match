@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/core/api_config.dart';
 
 class TutorialIds {
   static const welcome = 'welcome';
@@ -31,7 +32,7 @@ Future<void> markTutorialComplete({
   required String tutorialId,
 }) async {
   final response = await http.put(
-    Uri.parse('http://localhost:8000/tutorials/$userId/$tutorialId/complete'),
+    ApiConfig.getUri('/tutorials/$userId/$tutorialId/complete'),
   );
 
   if (response.statusCode == 200) {

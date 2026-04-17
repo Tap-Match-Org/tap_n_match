@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/core/api_config.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
 import 'package:tap_n_match/core/tutorial_progress.dart';
@@ -50,7 +51,7 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
   Future<void> _loadTutorialState() async {
     try {
       final response = await http.get(
-        Uri.parse('http://localhost:8000/users/${widget.userId}'),
+        ApiConfig.getUri('/users/${widget.userId}'),
       );
       if (response.statusCode != 200) {
         return;

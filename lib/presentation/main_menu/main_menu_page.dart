@@ -9,6 +9,7 @@ import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
 import 'package:tap_n_match/core/tutorial_progress.dart';
+import 'package:tap_n_match/core/api_config.dart';
 
 class MainMenuPage extends StatefulWidget {
   const MainMenuPage({super.key});
@@ -68,7 +69,7 @@ class _MainMenuPageState extends State<MainMenuPage>
 
   Future<void> _loadUserData() async {
     try {
-      final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
+      final response = await http.get(ApiConfig.getUri('/users/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         

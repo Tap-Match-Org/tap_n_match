@@ -2,6 +2,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:tap_n_match/core/api_config.dart';
 
 class SoundManager {
   static final SoundManager _instance = SoundManager._internal();
@@ -33,10 +34,16 @@ class SoundManager {
   Future<void> playTap() async {
     if (!_tapSoundEnabled) return;
     try {
+      // For rapid taps, we stop the current sound immediately before playing again
+      // to avoid the "interrupted by call to pause" error.
+      await _tapPlayer.stop();
       await _tapPlayer.setVolume(_tapVolume);
       await _tapPlayer.play(AssetSource(_selectedTapSound), mode: PlayerMode.lowLatency);
     } catch (e) {
-      debugPrint('Error playing tap sound: $e');
+      // We ignore the AbortError/Interrupted error as it's expected during rapid taps
+      if (!e.toString().contains('AbortError')) {
+        debugPrint('Error playing tap sound: $e');
+      }
     }
   }
 
@@ -135,7 +142,7 @@ class SoundManager {
   Future<void> persistToServer(int userId) async {
     try {
       await http.put(
-        Uri.parse('http://localhost:8000/update-user-settings/$userId'),
+        ApiConfig.getUri('/update-user-settings/$userId'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'tap_sound_enabled': _tapSoundEnabled,
@@ -146,7 +153,7 @@ class SoundManager {
         }),
       );
     } catch (e) {
-      debugPrint('Error persisting user settings: $e');
+      debugPrint('Note: Backend offline. Settings saved locally only. ($e)');
     }
   }
 

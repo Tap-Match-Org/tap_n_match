@@ -7,9 +7,12 @@ import 'package:http/http.dart' as http;
 import 'package:confetti/confetti.dart';
 import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
+import 'package:tap_n_match/core/api_config.dart';
 
 class DailyChallengePage extends StatefulWidget {
-  const DailyChallengePage({super.key});
+  final http.Client? httpClient;
+
+  const DailyChallengePage({super.key, this.httpClient});
 
   @override
   State<DailyChallengePage> createState() => _DailyChallengePageState();
@@ -29,6 +32,8 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
   Timer? _topSnackBarTimer;
   OverlayEntry? _topSnackBarEntry;
   late final AnimationController _topSnackBarController;
+  late final http.Client _client;
+  late final bool _ownsClient;
   String _topSnackBarMessage = "";
   bool _isGameOver = false;
   bool _rewardClaimed = false;
@@ -41,6 +46,8 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
   @override
   void initState() {
     super.initState();
+    _ownsClient = widget.httpClient == null;
+    _client = widget.httpClient ?? http.Client();
     _confettiController = ConfettiController(duration: const Duration(seconds: 2));
     _topSnackBarController = AnimationController(
       vsync: this,
@@ -159,7 +166,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
     if (_hasCheckedAttempts) return;
     _hasCheckedAttempts = true;
     try {
-      final response = await http.post(Uri.parse('http://localhost:8000/record-attempt/$userId'));
+      final response = await _client.post(ApiConfig.getUri('/record-attempt/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'limit_reached') {
@@ -175,7 +182,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
           }
           
           // Fetch user info to get the current selected theme
-          final userResponse = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
+          final userResponse = await _client.get(ApiConfig.getUri('/users/$userId'));
           if (userResponse.statusCode == 200) {
             final userData = jsonDecode(userResponse.body);
               if (mounted) {
@@ -288,6 +295,9 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
     _topSnackBarTimer?.cancel();
     _topSnackBarEntry?.remove();
     _topSnackBarController.dispose();
+    if (_ownsClient) {
+      _client.close();
+    }
     super.dispose();
   }
 
@@ -402,10 +412,10 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
   Future<void> _unlockColorInBackend() async {
     // IMPORTANT: Encode the '#' in the hex code for the URL
     final String encodedColor = Uri.encodeComponent(rewardColorHex);
-    final url = Uri.parse('http://localhost:8000/complete-challenge/$userId?reward_color=$encodedColor');
+    final url = ApiConfig.getUri('/complete-challenge/$userId?reward_color=$encodedColor');
 
     try {
-      final response = await http.put(url);
+      final response = await _client.put(url);
       debugPrint("Response status: ${response.statusCode}");
       debugPrint("Response body: ${response.body}");
       
