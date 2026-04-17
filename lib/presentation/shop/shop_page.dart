@@ -2,17 +2,22 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/core/api_config.dart';
 import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
+import 'package:tap_n_match/domain/shop/shop_rules.dart';
 
 class ShopPage extends StatefulWidget {
-  const ShopPage({super.key});
+  final http.Client? httpClient;
+  const ShopPage({super.key, this.httpClient});
 
   @override
   State<ShopPage> createState() => _ShopPageState();
 }
 
 class _ShopPageState extends State<ShopPage> {
+  late final http.Client _client;
+  late final bool _ownsClient;
   int userId = 1;
   int bankedPoints = 0;
   String selectedTheme = "#A9A9A9";
@@ -53,6 +58,21 @@ class _ShopPageState extends State<ShopPage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _ownsClient = widget.httpClient == null;
+    _client = widget.httpClient ?? http.Client();
+  }
+
+  ShopInventoryState get _inventoryState => ShopInventoryState(
+        bankedPoints: bankedPoints,
+        selectedTheme: selectedTheme,
+        unlockedThemes: unlockedThemes,
+        unlockedTapSounds: unlockedTapSounds,
+        unlockedBgMusic: unlockedBgMusic,
+      );
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_didInitialize) return;
@@ -66,16 +86,19 @@ class _ShopPageState extends State<ShopPage> {
 
   Future<void> _loadData() async {
     try {
-      final response = await http.get(Uri.parse('http://localhost:8000/users/$userId'));
+      final response = await _client.get(ApiConfig.getUri('/users/$userId'));
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = Map<String, dynamic>.from(
+          jsonDecode(response.body) as Map,
+        );
+        final inventory = ShopInventoryState.fromUserData(data);
         if (mounted) {
           setState(() {
-            bankedPoints = data['banked_points'] ?? 0;
-            selectedTheme = data['selected_theme'] ?? "#A9A9A9";
-            unlockedThemes = List<String>.from(data['unlocked_themes'] ?? []);
-            unlockedTapSounds = List<String>.from(data['unlocked_tap_sounds'] ?? []);
-            unlockedBgMusic = List<String>.from(data['unlocked_bg_music'] ?? []);
+            bankedPoints = inventory.bankedPoints;
+            selectedTheme = inventory.selectedTheme;
+            unlockedThemes = inventory.unlockedThemes;
+            unlockedTapSounds = inventory.unlockedTapSounds;
+            unlockedBgMusic = inventory.unlockedBgMusic;
             isLoading = false;
           });
         }
@@ -86,7 +109,10 @@ class _ShopPageState extends State<ShopPage> {
   }
 
   Future<void> _buyItem(Map<String, dynamic> item) async {
-    if (bankedPoints < item['price']) {
+    if (!canAffordPurchase(
+      bankedPoints: bankedPoints,
+      itemPrice: item['price'] as int,
+    )) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Not enough points!', style: GoogleFonts.pixelifySans()),
@@ -98,8 +124,8 @@ class _ShopPageState extends State<ShopPage> {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse('http://localhost:8000/buy-item/$userId'),
+      final response = await _client.post(
+        ApiConfig.getUri('/buy-item/$userId'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'item_id': item['id'],
@@ -110,21 +136,30 @@ class _ShopPageState extends State<ShopPage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final updatedInventory = _inventoryState.applyPurchasedItem(
+          updatedBankedPoints: (data['banked_points'] as num?)?.toInt() ?? bankedPoints,
+          itemType: item['type'] as String,
+          itemId: item['id'] as String,
+        );
         setState(() {
-          bankedPoints = data['banked_points'];
-          if (item['type'] == 'theme') {
-            unlockedThemes.add(item['id']);
-          } else if (item['type'] == 'tap_sound') {
-            unlockedTapSounds.add(item['id']);
-          } else if (item['type'] == 'bg_music') {
-            unlockedBgMusic.add(item['id']);
-          }
+          bankedPoints = updatedInventory.bankedPoints;
+          unlockedThemes = updatedInventory.unlockedThemes;
+          unlockedTapSounds = updatedInventory.unlockedTapSounds;
+          unlockedBgMusic = updatedInventory.unlockedBgMusic;
         });
         soundManager.playTap();
       }
     } catch (e) {
       debugPrint('Error buying item: $e');
     }
+  }
+
+  @override
+  void dispose() {
+    if (_ownsClient) {
+      _client.close();
+    }
+    super.dispose();
   }
 
   @override
@@ -339,14 +374,10 @@ class _ShopPageState extends State<ShopPage> {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        bool isUnlocked;
-        if (item['type'] == 'theme') {
-          isUnlocked = unlockedThemes.contains(item['id']);
-        } else if (item['type'] == 'tap_sound') {
-          isUnlocked = unlockedTapSounds.contains(item['id']);
-        } else {
-          isUnlocked = unlockedBgMusic.contains(item['id']);
-        }
+        final isUnlocked = _inventoryState.isUnlocked(
+          itemType: item['type'] as String,
+          itemId: item['id'] as String,
+        );
 
         return Container(
           decoration: BoxDecoration(
