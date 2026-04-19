@@ -558,7 +558,6 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
   void _handleCellTap(int index, _DifficultyConfig config) {
     if (_isSubmittingLevel || isPaused || isGameOver) return;
 
-    soundManager.playTap();
     setState(() {
       _tapCountThisLevel++;
       userPattern[index] = (userPattern[index] + 1) % config.colors;

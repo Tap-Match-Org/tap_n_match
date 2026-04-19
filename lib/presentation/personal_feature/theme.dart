@@ -336,24 +336,23 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
       debugPrint("Error marking reward as seen: $e");
     }
   }
+Future<void> _selectTheme(String themeKey) async {
+  final trimmedKey = themeKey.trim();
+  _markAsSeen(trimmedKey);
+  try {
+    final response = await http.put(
+      ApiConfig.getUri('/select-theme/$userId?theme_color=${Uri.encodeComponent(trimmedKey)}'),
+    );
 
-  Future<void> _selectTheme(String themeKey) async {
-    final trimmedKey = themeKey.trim();
-    _markAsSeen(trimmedKey);
-    try {
-      final response = await http.put(
-        ApiConfig.getUri('/select-theme/$userId?theme_color=${Uri.encodeComponent(trimmedKey)}'),
-      );
-
-      if (response.statusCode == 200) {
-        if (!mounted) return;
-        setState(() => selectedTheme = trimmedKey);
-        _showTopSnackBar("Theme changed to ${_getThemeName(trimmedKey)}!");
-      }
-    } catch (e) {
-      debugPrint("Error selecting theme: $e");
+    if (response.statusCode == 200) {
+      if (!mounted) return;
+      setState(() => selectedTheme = trimmedKey);
+      _showTopSnackBar("Theme changed to ${_getThemeName(trimmedKey)}!");
     }
+  } catch (e) {
+    debugPrint("Error selecting theme: $e");
   }
+}
 
   Future<void> _selectSound(String assetPath) async {
     final trimmedPath = assetPath.trim();

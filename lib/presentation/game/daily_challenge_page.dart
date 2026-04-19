@@ -643,7 +643,6 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
               return GestureDetector(
                 onTap: isInteractive
                     ? () {
-                        soundManager.playTap();
                         setState(() {
                           userGrid[index] = (userGrid[index] + 1) % 5; // Cycle through 0-4
                         });
