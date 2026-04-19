@@ -53,7 +53,7 @@ class _ShopPageState extends State<ShopPage> {
   final List<Map<String, dynamic>> musicItems = [
     {"id": "audio/background_music/minecraft_bgMusic.mp3", "name": "Minecraft", "price": 2000, "type": "bg_music"},
     {"id": "audio/background_music/genshin_bgMusic.mp3", "name": "Genshin", "price": 3000, "type": "bg_music"},
-    {"id": "audio/background_music/harvest_moon_bgMusic.mp3", "name": "Harvest Moon", "price": 2500, "type": "bg_music"},
+    {"id": "audio/background_music/harvestMoon.mp3", "name": "Harvest Moon", "price": 2500, "type": "bg_music"},
     {"id": "audio/background_music/snowfall_bgMusic.mp3", "name": "Snowfall", "price": 3500, "type": "bg_music"},
   ];
 
