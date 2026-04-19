@@ -8,6 +8,7 @@ class TutorialIds {
   static const profile = 'profile';
   static const play = 'play';
   static const dailyChallenge = 'daily_challenge';
+  static const shop = 'shop';
   static const leaderboards = 'leaderboards';
   static const achievements = 'achievements';
   static const themes = 'themes';
