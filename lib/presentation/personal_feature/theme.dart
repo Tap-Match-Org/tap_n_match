@@ -76,6 +76,10 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     "#F8F8FF": "Perfect White",
     "#FFFFFF": "White",
     "#4B0082": "Indigo",
+    "#480082": "Dark Indigo",
+    "#C0C0C0": "Silver",
+    "#708090": "Slate Gray",
+    "#CD7F32": "Bronze",
     "asset:assets/background/minecraft_bgColor.jpg": "Minecraft Grass",
     "asset:assets/background/harvest_moon_background.jpeg": "Harvest Moon",
     "asset:assets/background/genshin_background.jpeg": "Genshin",
@@ -99,7 +103,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
       return "Special Background";
     }
     if (trimmedKey.startsWith('#')) {
-      return "Custom Theme ($trimmedKey)";
+      return "Point Theme ($trimmedKey)";
     }
     return trimmedKey;
   }
@@ -319,7 +323,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     if (seenRewards.contains(id)) return;
     
     try {
-      final response = await http.post(
+      final response = await http.put(
         ApiConfig.getUri('/mark-reward-seen/$userId/${Uri.encodeComponent(id)}'),
       );
 
