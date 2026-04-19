@@ -14,6 +14,7 @@ class _RegisterPageState extends State<RegisterPage> {
   late TextEditingController _usernameController;
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
+  late TextEditingController _confirmPasswordController;
   late TextEditingController _codeController;
   
   bool _isLoading = false;
@@ -25,6 +26,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _usernameController = TextEditingController();
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
+    _confirmPasswordController = TextEditingController();
     _codeController = TextEditingController();
   }
 
@@ -33,6 +35,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _codeController.dispose();
     super.dispose();
   }
@@ -63,10 +66,19 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _handleRegister() async {
-    if (_usernameController.text.isEmpty || _passwordController.text.isEmpty || _codeController.text.isEmpty) {
+    if (_usernameController.text.isEmpty || 
+        _passwordController.text.isEmpty || 
+        _confirmPasswordController.text.isEmpty || 
+        _codeController.text.isEmpty) {
       _showMsg("Fill in all fields", isError: true);
       return;
     }
+
+    if (_passwordController.text != _confirmPasswordController.text) {
+      _showMsg("Passwords do not match", isError: true);
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final response = await http.post(
@@ -96,7 +108,7 @@ class _RegisterPageState extends State<RegisterPage> {
   void _showMsg(String msg, {required bool isError}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, style: GoogleFonts.pixelifySans()),
+        content: Text(msg, style: GoogleFonts.pixelifySans(fontSize: 12)),
         backgroundColor: isError ? Colors.redAccent : Colors.green,
         duration: const Duration(seconds: 2),
       ),
@@ -107,10 +119,11 @@ class _RegisterPageState extends State<RegisterPage> {
   InputDecoration _pixelInput(String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: GoogleFonts.pixelifySans(color: Colors.grey.shade600, fontSize: 13),
+      hintStyle: GoogleFonts.pixelifySans(color: Colors.grey.shade600, fontSize: 12),
       filled: true,
       fillColor: const Color(0xFFD9D9D9),
       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      isDense: true,
       enabledBorder: OutlineInputBorder(
         borderSide: const BorderSide(color: Colors.black, width: 2),
         borderRadius: BorderRadius.circular(8),
@@ -141,7 +154,7 @@ class _RegisterPageState extends State<RegisterPage> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
               child: Container(
-                constraints: const BoxConstraints(maxWidth: 420), 
+                constraints: const BoxConstraints(maxWidth: 400), 
                 padding: const EdgeInsets.fromLTRB(20, 15, 20, 10),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
@@ -158,11 +171,11 @@ class _RegisterPageState extends State<RegisterPage> {
                     Text(
                       'Create Account',
                       style: GoogleFonts.pixelifySans(
-                        fontSize: 24,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     
                     // Gmail + Send Button Row
                     Row(
@@ -172,18 +185,18 @@ class _RegisterPageState extends State<RegisterPage> {
                         GestureDetector(
                           onTap: _isSendingCode ? null : _sendCode,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             decoration: BoxDecoration(
                               color: _isSendingCode ? Colors.grey : const Color(0xFF4A90E2),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: Colors.black, width: 2),
                             ),
                             child: Text(_isSendingCode ? '...' : 'Send',
-                              style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 11)),
+                              style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 10)),
                           ),
                         ),                      ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     
                     // Verification Code
                     TextField(
@@ -191,40 +204,44 @@ class _RegisterPageState extends State<RegisterPage> {
                       textAlign: TextAlign.center,
                       decoration: _pixelInput('Enter 6-digit Code'),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     
-                    // Side-by-Side Username and Password
+                    // Username
+                    TextField(controller: _usernameController, decoration: _pixelInput('Username')),
+                    const SizedBox(height: 6),
+
+                    // Password Row
                     Row(
                       children: [
-                        Expanded(child: TextField(controller: _usernameController, decoration: _pixelInput('Username'))),
-                        const SizedBox(width: 8),
                         Expanded(child: TextField(controller: _passwordController, obscureText: true, decoration: _pixelInput('Password'))),
+                        const SizedBox(width: 8),
+                        Expanded(child: TextField(controller: _confirmPasswordController, obscureText: true, decoration: _pixelInput('Confirm Password'))),
                       ],
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 12),
 
                     _isLoading 
                       ? const CircularProgressIndicator(color: Colors.black)
                       : SizedBox(
-                          width: 180, 
+                          width: 160, 
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                             ),
                             onPressed: _handleRegister,
                             child: Text('VERIFY & SIGN UP', 
-                              style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 14)),
+                              style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
                           ),
                         ),
                     
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 4),
                     TextButton(
                       onPressed: () => Navigator.pop(context),
                       child: Text(
                         "Already have an account?",
-                        style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 12),
+                        style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 11),
                       ),
                     )
                   ],
