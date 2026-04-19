@@ -126,6 +126,8 @@ class _MainMenuPageState extends State<MainMenuPage>
           title: 'Welcome to Tap & Match!',
           description: 'Tap Play to start the game.',
           cardPosition: TutorialCardPosition.center,
+          showSkip: false,
+          cardOpacity: 0.7,
         ),
       ];
     }
@@ -137,6 +139,7 @@ class _MainMenuPageState extends State<MainMenuPage>
         description:
             'This panel shows today\'s Daily Challenge reward. Use it from the main menu when you want a special limited-time run.',
         cardPosition: TutorialCardPosition.centerLeft,
+        cardOpacity: 0.7,
       ),
       TutorialStep(
         targetKey: _dailyChallengeButtonKey,
@@ -144,6 +147,7 @@ class _MainMenuPageState extends State<MainMenuPage>
         description:
             'You only get 2 attempts for each Daily Challenge, so use them carefully before tapping Play Now.',
         cardPosition: TutorialCardPosition.bottomLeft,
+        cardOpacity: 0.7,
       ),
       TutorialStep(
         targetKey: _dailyChallengePanelKey,
@@ -151,6 +155,7 @@ class _MainMenuPageState extends State<MainMenuPage>
         description:
             'The Daily Challenge cycle lasts for 7 days only. After that, the game moves on to the Weekly Challenge.',
         cardPosition: TutorialCardPosition.topLeft,
+        cardOpacity: 0.7,
       ),
     ];
   }

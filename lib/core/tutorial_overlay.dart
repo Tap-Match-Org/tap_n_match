@@ -22,6 +22,8 @@ class TutorialStep {
     required this.description,
     required this.cardPosition,
     this.showArrow = true,
+    this.showSkip = true,
+    this.cardOpacity = 0.85,
   });
 
   final GlobalKey targetKey;
@@ -29,6 +31,8 @@ class TutorialStep {
   final String description;
   final TutorialCardPosition cardPosition;
   final bool showArrow;
+  final bool showSkip;
+  final double cardOpacity;
 }
 
 class GuidedTutorialOverlay extends StatefulWidget {
@@ -140,7 +144,7 @@ class _GuidedTutorialOverlayState extends State<GuidedTutorialOverlay> {
                       constraints: const BoxConstraints(maxWidth: 340),
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE8EEF7),
+                          color: const Color(0xFFE8EEF7).withValues(alpha: step.cardOpacity),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: Colors.black, width: 3),
                           boxShadow: const [
@@ -206,21 +210,23 @@ class _GuidedTutorialOverlayState extends State<GuidedTutorialOverlay> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                width: double.infinity,
-                                child: TextButton(
-                                  onPressed: widget.isSaving ? null : widget.onSkip,
-                                  child: Text(
-                                    widget.isSaving ? 'Saving...' : 'Skip tutorial',
-                                    style: GoogleFonts.pixelifySans(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
+                              if (step.showSkip) ...[
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: TextButton(
+                                    onPressed: widget.isSaving ? null : widget.onSkip,
+                                    child: Text(
+                                      widget.isSaving ? 'Saving...' : 'Skip tutorial',
+                                      style: GoogleFonts.pixelifySans(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ),

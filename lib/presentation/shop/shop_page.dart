@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/api_config.dart';
 import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
+import 'package:tap_n_match/core/tutorial_overlay.dart';
+import 'package:tap_n_match/core/tutorial_progress.dart';
 import 'package:tap_n_match/domain/shop/shop_rules.dart';
 
 class ShopPage extends StatefulWidget {
@@ -27,6 +29,15 @@ class _ShopPageState extends State<ShopPage> {
   bool isLoading = true;
   bool _didInitialize = false;
   int activeTab = 0; 
+
+  bool _showTutorial = false;
+  bool _isSavingTutorial = false;
+  bool _tutorialQueued = false;
+  int _tutorialStepIndex = 0;
+
+  final GlobalKey _pointsDisplayKey = GlobalKey();
+  final GlobalKey _categoriesKey = GlobalKey();
+  final GlobalKey _itemGridKey = GlobalKey();
 
   final List<Map<String, dynamic>> themeItems = [
     {"id": "#50C878", "name": "Emerald", "price": 500, "type": "theme"},
@@ -101,11 +112,105 @@ class _ShopPageState extends State<ShopPage> {
             unlockedBgMusic = inventory.unlockedBgMusic;
             isLoading = false;
           });
+          _queueTutorialIfNeeded(data);
         }
       }
     } catch (e) {
       debugPrint('Error loading shop data: $e');
+      if (mounted) setState(() => isLoading = false);
     }
+  }
+
+  List<TutorialStep> get _tutorialSteps => [
+    TutorialStep(
+      targetKey: _pointsDisplayKey,
+      title: 'Point Shop Currency',
+      description: 'Use your Banked Points here to unlock new styles. Your Lifetime Points won\'t be affected!',
+      cardPosition: TutorialCardPosition.topRight,
+      cardOpacity: 0.7,
+    ),
+    TutorialStep(
+      targetKey: _categoriesKey,
+      title: 'Shop Categories',
+      description: 'Switch between Themes, Backgrounds, Tap Sounds, and Music to see what\'s available.',
+      cardPosition: TutorialCardPosition.centerLeft,
+      cardOpacity: 0.7,
+    ),
+    TutorialStep(
+      targetKey: _itemGridKey,
+      title: 'Unlock Items',
+      description: 'Select an item to buy it. Once unlocked, you can equip it from the Themes page!',
+      cardPosition: TutorialCardPosition.center,
+      cardOpacity: 0.7,
+    ),
+  ];
+
+  void _queueTutorialIfNeeded(Map<String, dynamic> data) {
+    if (_tutorialQueued || !hasPendingTutorial(data, TutorialIds.shop)) {
+      return;
+    }
+
+    _tutorialQueued = true;
+    _showTutorialWhenReady();
+  }
+
+  void _showTutorialWhenReady() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      if (!_areTutorialTargetsReady()) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) _showTutorialWhenReady();
+        });
+        return;
+      }
+
+      setState(() {
+        _tutorialStepIndex = 0;
+        _showTutorial = true;
+      });
+    });
+  }
+
+  bool _areTutorialTargetsReady() {
+    final targets = [_pointsDisplayKey, _categoriesKey, _itemGridKey];
+    for (final key in targets) {
+      final renderObject = key.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<void> _finishTutorial() async {
+    if (_isSavingTutorial) return;
+    setState(() => _isSavingTutorial = true);
+    try {
+      await markTutorialComplete(userId: userId, tutorialId: TutorialIds.shop);
+    } catch (e) {
+      debugPrint("Error saving shop tutorial: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingTutorial = false;
+          _showTutorial = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleTutorialNext() async {
+    if (_tutorialStepIndex < _tutorialSteps.length - 1) {
+      setState(() => _tutorialStepIndex++);
+      return;
+    }
+    await _finishTutorial();
+  }
+
+  void _handleTutorialBack() {
+    if (_tutorialStepIndex == 0) return;
+    setState(() => _tutorialStepIndex--);
   }
 
   Future<void> _buyItem(Map<String, dynamic> item) async {
@@ -171,134 +276,152 @@ class _ShopPageState extends State<ShopPage> {
         width: double.infinity,
         height: double.infinity,
         decoration: buildThemeDecoration(selectedTheme),
-        child: Center(
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.95,
-            height: isLandscape ? MediaQuery.of(context).size.height * 0.9 : 620,
-            decoration: BoxDecoration(
-              color: const Color(0xFFD9D9D9),
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: Colors.black, width: 3),
-            ),
-            child: Column(
-              children: [
-                // HEADER
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFAEC6FF),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
-                    ),
-                    border: Border(bottom: BorderSide(color: Colors.black, width: 3)),
-                  ),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.black, width: 2),
-                          ),
-                          child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 18),
+        child: Stack(
+          children: [
+            Center(
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.95,
+                height: isLandscape ? MediaQuery.of(context).size.height * 0.9 : 620,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD9D9D9),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: Colors.black, width: 3),
+                ),
+                child: Column(
+                  children: [
+                    // HEADER
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFAEC6FF),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                          topRight: Radius.circular(12),
                         ),
+                        border: Border(bottom: BorderSide(color: Colors.black, width: 3)),
                       ),
-                      Expanded(
-                        child: Text(
-                          'Point Shop',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.pixelifySans(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFFFCA016),
-                            shadows: [const Shadow(offset: Offset(2, 2), color: Colors.black)],
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.black, width: 1.5),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.stars, color: Colors.orange, size: 16),
-                            const SizedBox(width: 4),
-                            Text(
-                              bankedPoints.toString(),
-                              style: GoogleFonts.pixelifySans(
-                                  fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
+                      child: Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.black, width: 2),
+                              ),
+                              child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 18),
                             ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // CONTENT AREA
-                Expanded(
-                  child: Row(
-                    children: [
-                      // SIDEBAR
-                      Container(
-                        width: 120,
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF8DA9E6), Color(0xFFBBD5FF)],
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
                           ),
-                          border: Border(right: BorderSide(color: Colors.black, width: 3)),
-                        ),
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(vertical: 20),
-                          child: Column(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 15),
-                                child: Text(
-                                  'CATEGORIES',
+                          Expanded(
+                            child: Text(
+                              'Point Shop',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.pixelifySans(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFFFCA016),
+                                shadows: [const Shadow(offset: Offset(2, 2), color: Colors.black)],
+                              ),
+                            ),
+                          ),
+                          Container(
+                            key: _pointsDisplayKey,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.9),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.black, width: 1.5),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.stars, color: Colors.orange, size: 16),
+                                const SizedBox(width: 4),
+                                Text(
+                                  bankedPoints.toString(),
                                   style: GoogleFonts.pixelifySans(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black54,
-                                    letterSpacing: 1,
-                                  ),
+                                      fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
                                 ),
-                              ),
-                              _buildSidebarButton('Themes', Icons.palette, 0),
-                              _buildSidebarButton('BGs', Icons.image, 1),
-                              _buildSidebarButton('Taps', Icons.touch_app, 2),
-                              _buildSidebarButton('Music', Icons.music_note, 3),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
+                        ],
                       ),
+                    ),
 
-                      // SHOP GRID
-                      Expanded(
-                        child: isLoading
-                            ? const Center(child: CircularProgressIndicator())
-                            : Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: _buildItemGrid(_getCurrentItems()),
+                    // CONTENT AREA
+                    Expanded(
+                      child: Row(
+                        children: [
+                          // SIDEBAR
+                          Container(
+                            key: _categoriesKey,
+                            width: 120,
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFF8DA9E6), Color(0xFFBBD5FF)],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
                               ),
+                              border: Border(right: BorderSide(color: Colors.black, width: 3)),
+                            ),
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Column(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 15),
+                                    child: Text(
+                                      'CATEGORIES',
+                                      style: GoogleFonts.pixelifySans(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black54,
+                                        letterSpacing: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  _buildSidebarButton('Themes', Icons.palette, 0),
+                                  _buildSidebarButton('BGs', Icons.image, 1),
+                                  _buildSidebarButton('Taps', Icons.touch_app, 2),
+                                  _buildSidebarButton('Music', Icons.music_note, 3),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // SHOP GRID
+                          Expanded(
+                            child: isLoading
+                                ? const Center(child: CircularProgressIndicator())
+                                : Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Container(
+                                      key: _itemGridKey,
+                                      child: _buildItemGrid(_getCurrentItems()),
+                                    ),
+                                  ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
+            if (_showTutorial)
+              GuidedTutorialOverlay(
+                steps: _tutorialSteps,
+                currentIndex: _tutorialStepIndex,
+                onNext: _handleTutorialNext,
+                onBack: _handleTutorialBack,
+                onSkip: _finishTutorial,
+                isSaving: _isSavingTutorial,
+              ),
+          ],
         ),
       ),
     );
