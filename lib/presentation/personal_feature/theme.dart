@@ -56,7 +56,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     "#FFC0CB": "Pink",
     "#00FF00": "Lime",
     "#00FFFF": "Cyan",
-    "#FFD700": "Gold", 
+    "#FFD700": "Gold",
     "#87CEEB": "Sky Blue",
     "#228B22": "Forest Green",
     "#301934": "Deep Purple",
@@ -74,11 +74,35 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     "#E0E0E0": "Pearl White",
     "#A020F0": "Rainbow Prism",
     "#F8F8FF": "Perfect White",
+    "#FFFFFF": "White",
+    "#4B0082": "Indigo",
     "asset:assets/background/minecraft_bgColor.jpg": "Minecraft Grass",
     "asset:assets/background/harvest_moon_background.jpeg": "Harvest Moon",
     "asset:assets/background/genshin_background.jpeg": "Genshin",
     "asset:assets/background/snowfall_background.jpeg": "Snowfall",
   };
+
+  String _getThemeName(String themeKey) {
+    final trimmedKey = themeKey.trim();
+    // Try exact match first
+    if (colorNames.containsKey(trimmedKey)) {
+      return colorNames[trimmedKey]!;
+    }
+    // Try case-insensitive match
+    for (final entry in colorNames.entries) {
+      if (entry.key.toLowerCase() == trimmedKey.toLowerCase()) {
+        return entry.value;
+      }
+    }
+    // Fallback
+    if (assetThemePath(trimmedKey) != null) {
+      return "Special Background";
+    }
+    if (trimmedKey.startsWith('#')) {
+      return "Custom Theme ($trimmedKey)";
+    }
+    return trimmedKey;
+  }
 
   final Map<String, String> soundNames = {
     _defaultTapSoundAsset: "Default Tap",
@@ -320,7 +344,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
       if (response.statusCode == 200) {
         if (!mounted) return;
         setState(() => selectedTheme = trimmedKey);
-        _showTopSnackBar("Theme changed to ${colorNames[trimmedKey] ?? trimmedKey}!");
+        _showTopSnackBar("Theme changed to ${_getThemeName(trimmedKey)}!");
       }
     } catch (e) {
       debugPrint("Error selecting theme: $e");
@@ -543,9 +567,10 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
     final assetPath = assetThemePath(themeKey);
     final bool isAsset = assetPath != null;
     final bool isSelected = selectedTheme == themeKey;
-    final String name = colorNames[themeKey.trim()] ?? (isAsset ? "Image Theme" : themeKey);
+    final String name = _getThemeName(themeKey);
     final Color backgroundColor = isAsset ? Colors.black45 : parseThemeColor(themeKey);
     final bool isNew = !seenRewards.contains(themeKey.trim()) && !isSelected && themeKey != _defaultThemeKey;
+
 
     return Stack(
       clipBehavior: Clip.none,
