@@ -34,15 +34,23 @@ This file serves as the source of truth for the current state of the Tap & Match
 - **Settings Dialog:** Fixed a 32px overlap in the settings menu by wrapping the column in a `SingleChildScrollView`.
 - **Target Patterns:** Updated the difficulty engine to exclude white (index 0) boxes from target patterns for a better challenge.
 
+### 6. TDD & Testing Infrastructure
+- **Flutter Refactoring:** Decoupled business logic from UI by introducing the `AuthRepository`, enabling isolated unit testing.
+- **Unit Testing:** Added `mocktail` and implemented comprehensive unit tests for `AuthRepository` (`test/repository/auth_repository_test.dart`).
+- **Backend Testing:** Established a formal `pytest` suite for the FastAPI backend (`backend/test_main.py`), using a mock database for isolated endpoint verification.
+
 ## 🛠️ Current Project State
-- **Backend:** `backend/main.py` is updated with all point systems and shop endpoints.
+- **Backend:** `backend/main.py` is updated with all point systems and shop endpoints. Tested via `pytest`.
 - **Database:** `users.db` schema includes all new fields (`banked_points`, `lifetime_points`, `unlocked_bg_music`).
-- **Flutter:** `play.dart`, `daily_challenge_page.dart`, and `main_menu_page.dart` are fully integrated with the new systems.
+- **Flutter:** Architecture refactoring in progress (Auth completed). Critical paths now have automated tests.
 
 ## 📌 Pending Tasks / Next Steps
+- [ ] Refactor Shop & Points logic into repositories to expand test coverage.
+- [ ] Add integration tests for the "Weekly Challenge" logic before implementation.
 - [ ] Add more assets (Images/Audio) to the `assets/` folder.
 - [ ] Register new assets in `lib/presentation/shop/shop_page.dart` catalog.
 - [ ] Finalize "Weekly Challenge" logic (transitioning from 7-day newbie cycle).
+
 
 ---
 *Last Updated: Tuesday, April 7, 2026*
