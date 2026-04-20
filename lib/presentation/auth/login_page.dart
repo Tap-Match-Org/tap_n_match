@@ -50,6 +50,20 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    // --- GUEST ACCOUNT BYPASS FOR PHONE TESTING ---
+    if (username == 'Guest' && password == 'kazuya143') {
+      const guestId = 9999;
+      await PersistenceService.saveUserId(guestId);
+      await PersistenceService.saveUsername('Guest');
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed(
+          '/menu',
+          arguments: {'user_id': guestId},
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
