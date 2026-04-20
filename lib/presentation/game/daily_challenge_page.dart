@@ -248,9 +248,11 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
     super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null) {
-      isNewbie = args['isNewbie'] ?? true;
       userStreak = args['streak'] ?? 0;
       completedChallenges = args['completedChallenges'] ?? 0;
+      // Re-calculate isNewbie to ensure consistency
+      isNewbie = completedChallenges < 7;
+      
       if (args.containsKey('user_id')) {
         userId = args['user_id'];
       }
@@ -461,14 +463,16 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
       _confettiController.play();
     }
 
-    String failureMessage = "Try again next week!";
+    String failureMessage = isNewbie ? "Try again tomorrow!" : "Try again next week!";
     bool canRetry = false;
     if (!won && !alreadyClaimed) {
       if (_attempts == 1) {
         failureMessage = "You have 1 attempt left";
         canRetry = true;
       } else if (_attempts >= 2) {
-        failureMessage = "You have no attempts left, comeback tomorrow for the next challenge";
+        failureMessage = isNewbie 
+          ? "You have no attempts left, comeback tomorrow for the next daily challenge"
+          : "You have no attempts left, comeback tomorrow for your next weekly attempt";
       }
     }
 
