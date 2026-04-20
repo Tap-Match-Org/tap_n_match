@@ -27,7 +27,6 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
   bool _isSavingTutorial = false;
   bool _tutorialQueued = false;
   int _tutorialStepIndex = 0;
-  final GlobalKey _reportPlayerKey = GlobalKey();
   final GlobalKey _feedbackKey = GlobalKey();
   final GlobalKey _bugReportKey = GlobalKey();
   final GlobalKey _banAppealKey = GlobalKey();
@@ -65,13 +64,6 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
   }
 
   List<TutorialStep> get _tutorialSteps => [
-        TutorialStep(
-          targetKey: _reportPlayerKey,
-          title: 'Report Player',
-          description:
-              'Use this if another player is cheating, harassing others, or breaking the rules.',
-          cardPosition: TutorialCardPosition.centerRight,
-        ),
         TutorialStep(
           targetKey: _feedbackKey,
           title: 'Player Feedback',
@@ -127,7 +119,6 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
 
   bool _areTutorialTargetsReady() {
     final targets = [
-      _reportPlayerKey,
       _feedbackKey,
       _bugReportKey,
       _banAppealKey,
@@ -236,16 +227,6 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
                         ),
                       ),
                       const SizedBox(height: 30),
-                      _buildSupportOption(
-                        context,
-                        key: _reportPlayerKey,
-                        icon: Icons.report_problem,
-                        title: 'Report Player',
-                        description: 'Report inappropriate player behavior',
-                        color: Colors.red.shade400,
-                        route: '/support/report_player',
-                      ),
-                      const SizedBox(height: 16),
                       _buildSupportOption(
                         context,
                         key: _feedbackKey,
