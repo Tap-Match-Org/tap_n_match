@@ -135,9 +135,9 @@ class _MainMenuPageState extends State<MainMenuPage>
     return <TutorialStep>[
       TutorialStep(
         targetKey: _dailyChallengePanelKey,
-        title: isNewbie ? 'Daily Challenge' : 'Weekly Challenge',
+        title: 'Daily Challenge',
         description:
-            'This panel shows your current challenge reward. Use it from the main menu when you want a special limited-time run.',
+            'This panel shows today\'s Daily Challenge reward. Use it from the main menu when you want a special limited-time run.',
         cardPosition: TutorialCardPosition.centerLeft,
         cardOpacity: 0.7,
       ),
@@ -145,13 +145,13 @@ class _MainMenuPageState extends State<MainMenuPage>
         targetKey: _dailyChallengeButtonKey,
         title: 'Only 2 Attempts',
         description:
-            'You only get 2 attempts for each challenge, so use them carefully before tapping Play Now.',
+            'You only get 2 attempts for each Daily Challenge, so use them carefully before tapping Play Now.',
         cardPosition: TutorialCardPosition.bottomLeft,
         cardOpacity: 0.7,
       ),
       TutorialStep(
         targetKey: _dailyChallengePanelKey,
-        title: '7-Day Challenge Cycle',
+        title: '7-Day Daily Challenge',
         description:
             'The Daily Challenge cycle lasts for 7 days only. After that, the game moves on to the Weekly Challenge.',
         cardPosition: TutorialCardPosition.topLeft,
@@ -452,10 +452,9 @@ class _MainMenuPageState extends State<MainMenuPage>
       return newbieDaysConfig[index];
     } else {
       // Weekly challenges for veterans
-      // After Day 7, cycle through the veteran rewards daily
-      int veteranDay = completedDailyChallenges - 7;
-      int rewardIndex = veteranDay % weeklyChallengesConfig.length;
-      return weeklyChallengesConfig[rewardIndex];
+      // Day 8-14: Week 1, Day 15-21: Week 2, etc.
+      int weekIndex = ((completedDailyChallenges - 7) ~/ 7).clamp(0, weeklyChallengesConfig.length - 1);
+      return weeklyChallengesConfig[weekIndex];
     }
   }
 
@@ -1056,7 +1055,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                           border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
                         ),
                         child: Text(
-                          isNewbie ? 'Daily Challenge' : 'Weekly Challenge',
+                          'Daily Challenge',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.pixelifySans(
                             fontWeight: FontWeight.bold,
