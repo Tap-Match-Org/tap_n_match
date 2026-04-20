@@ -1049,7 +1049,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                           border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
                         ),
                         child: Text(
-                          'Daily Challenge',
+                          isNewbie ? 'Daily Challenge' : 'Weekly Challenge',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.pixelifySans(
                             fontWeight: FontWeight.bold,
