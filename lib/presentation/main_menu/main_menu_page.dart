@@ -188,7 +188,7 @@ class _MainMenuPageState extends State<MainMenuPage>
       return;
     }
 
-    if (hasPendingTutorial(data, TutorialIds.play) || challengeCompletedToday) {
+    if (hasPendingTutorial(data, TutorialIds.play) || !_isChallengeAvailable) {
       return;
     }
 
