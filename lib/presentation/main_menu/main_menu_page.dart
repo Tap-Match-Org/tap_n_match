@@ -26,7 +26,8 @@ class _MainMenuPageState extends State<MainMenuPage>
   int bankedPoints = 0;
   int lifetimePoints = 0;
   String selectedTheme = "#A9A9A9";
-  bool challengeCompletedToday = false;
+  bool _isChallengeAvailable = false;
+  int _daysUntilNextChallenge = 0;
   late final AnimationController _menuController;
   bool _didInitialize = false;
   int _claimableRewardCount = 0;
@@ -90,12 +91,30 @@ class _MainMenuPageState extends State<MainMenuPage>
           selectedTheme = data['selected_theme'] ?? "#A9A9A9";
           bankedPoints = data['banked_points'] ?? 0;
           lifetimePoints = data['lifetime_points'] ?? 0;
-          
-          // Check if challenge was completed today
-          final String? lastChallengeDate = data['last_challenge_date'];
-          final String today = DateTime.now().toIso8601String().split('T')[0];
-          challengeCompletedToday = (lastChallengeDate == today);
           _claimableRewardCount = data['claimable_reward_count'] as int? ?? 0;
+
+          // --- Every 7th Day Challenge Logic ---
+          final String? lastDateStr = data['last_challenge_date'];
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+
+          if (lastDateStr == null) {
+            _isChallengeAvailable = true;
+            _daysUntilNextChallenge = 0;
+          } else {
+            final lastDate = DateTime.parse(lastDateStr);
+            final lastDay = DateTime(lastDate.year, lastDate.month, lastDate.day);
+            final difference = today.difference(lastDay).inDays;
+
+            if (isNewbie) {
+              _isChallengeAvailable = difference >= 1;
+              _daysUntilNextChallenge = _isChallengeAvailable ? 0 : 1;
+            } else {
+              // For veterans, available every 7 days
+              _isChallengeAvailable = difference >= 7;
+              _daysUntilNextChallenge = _isChallengeAvailable ? 0 : (7 - difference);
+            }
+          }
         });
 
         // Update sound settings
@@ -1059,7 +1078,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                       ),
                       Padding(
                         padding: const EdgeInsets.all(8),
-                        child: challengeCompletedToday
+                        child: !_isChallengeAvailable
                             ? Column(
                                 mainAxisSize: MainAxisSize.min,
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1069,14 +1088,18 @@ class _MainMenuPageState extends State<MainMenuPage>
                                     height: 36,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: const Color(0xFF98EE99),
+                                      color: isNewbie ? const Color(0xFF98EE99) : Colors.grey.shade400,
                                       border: Border.all(color: Colors.black, width: 2),
                                     ),
-                                    child: const Icon(Icons.check_rounded, color: Colors.black, size: 22),
+                                    child: Icon(
+                                      isNewbie ? Icons.check_rounded : Icons.timer_outlined,
+                                      color: Colors.black,
+                                      size: 22,
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Completed today',
+                                    isNewbie ? 'Completed today' : 'Weekly Challenge',
                                     textAlign: TextAlign.center,
                                     style: GoogleFonts.pixelifySans(
                                       fontWeight: FontWeight.bold,
@@ -1085,7 +1108,9 @@ class _MainMenuPageState extends State<MainMenuPage>
                                   ),
                                   const SizedBox(height: 3),
                                   Text(
-                                    'Come back tomorrow',
+                                    isNewbie 
+                                      ? 'Come back tomorrow' 
+                                      : 'Available in $_daysUntilNextChallenge day${_daysUntilNextChallenge == 1 ? '' : 's'}',
                                     textAlign: TextAlign.center,
                                     style: GoogleFonts.pixelifySans(
                                       fontSize: 8,
@@ -1099,7 +1124,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    'Today\'s reward',
+                                    'Current reward',
                                     textAlign: TextAlign.center,
                                     style: GoogleFonts.pixelifySans(
                                       fontSize: 9,
@@ -1140,7 +1165,6 @@ class _MainMenuPageState extends State<MainMenuPage>
                                         '/daily_challenge',
                                         arguments: {
                                           'user_id': userId,
-                                          'isNewbie': isNewbie,
                                           'streak': userStreak,
                                           'completedChallenges': completedDailyChallenges,
                                         },
