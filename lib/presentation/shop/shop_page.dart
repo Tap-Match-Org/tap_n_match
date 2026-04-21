@@ -112,12 +112,16 @@ class _ShopPageState extends State<ShopPage> {
             unlockedBgMusic = inventory.unlockedBgMusic;
             isLoading = false;
           });
-          _queueTutorialIfNeeded(data);
+          _queueTutorialIfNeeded(inventory.pendingTutorials);
+          return;
         }
       }
     } catch (e) {
       debugPrint('Error loading shop data: $e');
-      if (mounted) setState(() => isLoading = false);
+    }
+
+    if (mounted) {
+      setState(() => isLoading = false);
     }
   }
 
@@ -145,8 +149,8 @@ class _ShopPageState extends State<ShopPage> {
     ),
   ];
 
-  void _queueTutorialIfNeeded(Map<String, dynamic> data) {
-    if (_tutorialQueued || !hasPendingTutorial(data, TutorialIds.shop)) {
+  void _queueTutorialIfNeeded(List<String> pendingTutorials) {
+    if (_tutorialQueued || !pendingTutorials.contains(TutorialIds.shop)) {
       return;
     }
 
@@ -155,15 +159,18 @@ class _ShopPageState extends State<ShopPage> {
   }
 
   void _showTutorialWhenReady() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.endOfFrame.then((_) {
       if (!mounted) return;
 
       if (!_areTutorialTargetsReady()) {
+        WidgetsBinding.instance.scheduleFrame();
         Future.delayed(const Duration(milliseconds: 100), () {
           if (mounted) _showTutorialWhenReady();
         });
         return;
       }
+
+      if (_showTutorial) return;
 
       setState(() {
         _tutorialStepIndex = 0;
