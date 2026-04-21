@@ -12,7 +12,6 @@ import '../presentation/auth/banned_page.dart';
 import '../presentation/game/daily_challenge_page.dart';
 import '../presentation/game/play.dart';
 import '../presentation/support/support_menu_page.dart';
-import '../presentation/support/report_player_page.dart';
 import '../presentation/support/player_feedback_page.dart';
 import '../presentation/support/bug_report_page.dart';
 import '../presentation/support/ban_appeal_page.dart';
@@ -49,13 +48,6 @@ class AppRoutes {
     '/support': (context) {
       final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
       return SupportMenuPage(
-        userId: args?['user_id'] ?? 1,
-        selectedTheme: args?['selected_theme'] ?? '#A9A9A9',
-      );
-    },
-    '/support/report_player': (context) {
-      final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
-      return ReportPlayerPage(
         userId: args?['user_id'] ?? 1,
         selectedTheme: args?['selected_theme'] ?? '#A9A9A9',
       );

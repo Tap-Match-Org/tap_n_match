@@ -41,6 +41,8 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
   bool _tutorialQueued = false;
   bool _hasPendingPlayTutorial = false;
   bool _isTutorialActive = false;
+  bool _showCountdown = false;
+  int _countdownTime = 3;
   int _tutorialStepIndex = 0;
   final GlobalKey _scoreBarKey = GlobalKey();
   final GlobalKey _targetGridKey = GlobalKey();
@@ -204,7 +206,11 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     if (!mounted || _isLoading || isPaused || isGameOver) {
       return;
     }
-    _startTimer();
+    if (currentLevel == 1) {
+      _startCountdown();
+    } else {
+      _startTimer();
+    }
   }
 
   Future<void> _finishTutorial() async {
@@ -261,14 +267,43 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     isGameOver = false;
     isPaused = false;
 
-    _startTimer();
+    if (currentLevel == 1 && !_hasPendingPlayTutorial) {
+      _startCountdown();
+    } else if (!_isTutorialActive) {
+      _startTimer();
+    }
     if (mounted) setState(() {});
+  }
+
+  void _startCountdown() {
+    setState(() {
+      _showCountdown = true;
+      _countdownTime = 3;
+    });
+
+    Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_countdownTime <= 1) {
+        t.cancel();
+        setState(() {
+          _showCountdown = false;
+        });
+        _startTimer();
+      } else {
+        setState(() {
+          _countdownTime--;
+        });
+      }
+    });
   }
 
   void _startTimer() {
     timer?.cancel();
     timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted || isPaused || isGameOver || _isTutorialActive) return;
+      if (!mounted || isPaused || isGameOver || _isTutorialActive || _showCountdown) return;
 
       if (secondsLeft <= 1) {
         t.cancel();
@@ -1110,7 +1145,41 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
             onSkip: _finishTutorial,
             isSaving: _isSavingTutorial,
           ),
+        if (_showCountdown)
+          _buildCountdownOverlay(),
       ],
+    );
+  }
+
+  Widget _buildCountdownOverlay() {
+    return Container(
+      color: Colors.black.withValues(alpha: 0.5),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "GET READY!",
+              style: GoogleFonts.pixelifySans(
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                shadows: [const Shadow(offset: Offset(4, 4), color: Colors.black54)],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _countdownTime.toString(),
+              style: GoogleFonts.pixelifySans(
+                fontSize: 120,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFFFCA016),
+                shadows: [const Shadow(offset: Offset(6, 6), color: Colors.black54)],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

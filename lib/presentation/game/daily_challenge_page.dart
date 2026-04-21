@@ -248,9 +248,11 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
     super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null) {
-      isNewbie = args['isNewbie'] ?? true;
       userStreak = args['streak'] ?? 0;
       completedChallenges = args['completedChallenges'] ?? 0;
+      // Re-calculate isNewbie to ensure consistency
+      isNewbie = completedChallenges < 7;
+      
       if (args.containsKey('user_id')) {
         userId = args['user_id'];
       }
@@ -269,8 +271,10 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
       config = newbieDaysConfig[index];
     } else {
       // Weekly challenges for veterans
-      int weekIndex = ((completedChallenges - 7) ~/ 7).clamp(0, weeklyChallengesConfig.length - 1);
-      config = weeklyChallengesConfig[weekIndex];
+      // After Day 7, cycle through the veteran rewards daily
+      int veteranDay = completedChallenges - 7;
+      int rewardIndex = veteranDay % weeklyChallengesConfig.length;
+      config = weeklyChallengesConfig[rewardIndex];
       
       // Apply weekly challenge specific assets
       if (config.containsKey("tapSound")) {
