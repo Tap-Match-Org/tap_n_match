@@ -5,6 +5,7 @@ class ShopInventoryState {
     required this.unlockedThemes,
     required this.unlockedTapSounds,
     required this.unlockedBgMusic,
+    this.pendingTutorials = const [],
   });
 
   factory ShopInventoryState.fromUserData(Map<String, dynamic> data) {
@@ -14,6 +15,7 @@ class ShopInventoryState {
       unlockedThemes: List<String>.from(data['unlocked_themes'] ?? const []),
       unlockedTapSounds: List<String>.from(data['unlocked_tap_sounds'] ?? const []),
       unlockedBgMusic: List<String>.from(data['unlocked_bg_music'] ?? const []),
+      pendingTutorials: List<String>.from(data['pending_tutorials'] ?? const []),
     );
   }
 
@@ -22,6 +24,7 @@ class ShopInventoryState {
   final List<String> unlockedThemes;
   final List<String> unlockedTapSounds;
   final List<String> unlockedBgMusic;
+  final List<String> pendingTutorials;
 
   bool isUnlocked({
     required String itemType,
@@ -72,6 +75,7 @@ class ShopInventoryState {
       unlockedThemes: nextThemes,
       unlockedTapSounds: nextTapSounds,
       unlockedBgMusic: nextBgMusic,
+      pendingTutorials: pendingTutorials,
     );
   }
 }
