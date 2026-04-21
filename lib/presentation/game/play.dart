@@ -53,6 +53,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
   late List<int> userPattern;
   late int secondsLeft;
   Timer? timer;
+  Timer? _countdownTimer;
   Timer? pauseShuffleTimer;
   Timer? _topSnackBarTimer;
   OverlayEntry? _topSnackBarEntry;
@@ -281,7 +282,8 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
       _countdownTime = 3;
     });
 
-    Timer.periodic(const Duration(seconds: 1), (t) {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
         return;
@@ -1011,6 +1013,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
   void dispose() {
     _confettiController.dispose();
     timer?.cancel();
+    _countdownTimer?.cancel();
     pauseShuffleTimer?.cancel();
     _topSnackBarTimer?.cancel();
     _topSnackBarEntry?.remove();
