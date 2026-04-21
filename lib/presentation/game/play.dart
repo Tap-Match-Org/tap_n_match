@@ -1032,30 +1032,33 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
   }
 
   Widget _buildGameContent(_DifficultyConfig config) {
+    final compactHud = config.rows >= 5 || config.cols >= 5;
+
     return Stack(
       children: [
         Positioned(
-          left: 20,
-          top: 20,
-          child: _buildScoreBar(),
+          left: compactHud ? 14 : 20,
+          top: compactHud ? 14 : 20,
+          child: _buildScoreBar(compact: compactHud),
         ),
         Positioned(
-          right: 20,
-          top: 20,
+          right: compactHud ? 14 : 20,
+          top: compactHud ? 14 : 20,
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 "Level: $currentLevel (${config.label})",
                 style: GoogleFonts.pixelifySans(
-                    fontSize: 20,
+                    fontSize: compactHud ? 16 : 20,
                     color: Colors.white,
                     fontWeight: FontWeight.bold),
               ),
-              const SizedBox(width: 15),
+              SizedBox(width: compactHud ? 10 : 15),
               GestureDetector(
                 onTap: _showPauseDialog,
                 child: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: EdgeInsets.all(compactHud ? 6 : 8),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
@@ -1068,29 +1071,32 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           ),
         ),
         Center(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildGrid(
-                  targetPattern,
-                  false,
-                  "Target",
-                  config,
-                  tutorialKey: _targetGridKey,
-                ),
-                const SizedBox(width: 20),
-                _buildCenterUI(),
-                const SizedBox(width: 20),
-                _buildGrid(
-                  userPattern,
-                  !isGameOver && !isPaused && !_isSubmittingLevel,
-                  "Your Grid",
-                  config,
-                  tutorialKey: _userGridKey,
-                ),
-              ],
+          child: Padding(
+            padding: EdgeInsets.only(top: compactHud ? 44 : 12),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildGrid(
+                    targetPattern,
+                    false,
+                    "Target",
+                    config,
+                    tutorialKey: _targetGridKey,
+                  ),
+                  const SizedBox(width: 20),
+                  _buildCenterUI(),
+                  const SizedBox(width: 20),
+                  _buildGrid(
+                    userPattern,
+                    !isGameOver && !isPaused && !_isSubmittingLevel,
+                    "Your Grid",
+                    config,
+                    tutorialKey: _userGridKey,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1132,10 +1138,13 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildScoreBar() {
+  Widget _buildScoreBar({bool compact = false}) {
     return Container(
       key: _scoreBarKey,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 12 : 14,
+        vertical: compact ? 8 : 10,
+      ),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.92),
         borderRadius: BorderRadius.circular(12),
@@ -1154,7 +1163,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           Text(
             "Score",
             style: GoogleFonts.pixelifySans(
-              fontSize: 14,
+              fontSize: compact ? 12 : 14,
               fontWeight: FontWeight.bold,
               color: Colors.black54,
             ),
@@ -1162,7 +1171,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           Text(
             currentScore.toString(),
             style: GoogleFonts.pixelifySans(
-              fontSize: 28,
+              fontSize: compact ? 24 : 28,
               fontWeight: FontWeight.bold,
               color: Colors.black,
             ),
@@ -1170,7 +1179,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           Text(
             "High Score: $highestScore",
             style: GoogleFonts.pixelifySans(
-              fontSize: 10,
+              fontSize: compact ? 9 : 10,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
