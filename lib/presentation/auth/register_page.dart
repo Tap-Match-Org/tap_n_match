@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:tap_n_match/core/api_config.dart';
+import 'package:tap_n_match/repository/auth_repository.dart';
 
 class RegisterPage extends StatefulWidget {
-  const RegisterPage({super.key});
+  final AuthRepository authRepository;
+
+  RegisterPage({super.key, AuthRepository? authRepository})
+      : authRepository = authRepository ?? AuthRepository();
 
   @override
   State<RegisterPage> createState() => _RegisterPageState();
@@ -48,22 +49,16 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
     setState(() => _isSendingCode = true);
-    try {
-      final response = await http.post(
-        ApiConfig.getUri('/send-code'), // localhost for Chrome
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"email": _emailController.text}),
-      );
-      if (response.statusCode == 200) {
-        _showMsg("Code sent to Gmail!", isError: false);
-      } else {
-        _showMsg("Failed to send code.", isError: true);
-      }
-    } catch (e) {
-      _showMsg("Server Offline - Check VS Code Terminal", isError: true);
-    } finally {
-      setState(() => _isSendingCode = false);
+    
+    final success = await widget.authRepository.sendVerificationCode(_emailController.text);
+    
+    if (success) {
+      _showMsg("Code sent to Gmail!", isError: false);
+    } else {
+      _showMsg("Failed to send code or Server Offline", isError: true);
     }
+    
+    if (mounted) setState(() => _isSendingCode = false);
   }
 
   Future<void> _handleRegister() async {
@@ -81,29 +76,22 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     setState(() => _isLoading = true);
-    try {
-      final response = await http.post(
-        ApiConfig.getUri('/register'), // localhost for Chrome
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "username": _usernameController.text,
-          "email": _emailController.text,
-          "password": _passwordController.text,
-          "code": _codeController.text,
-        }),
-      );
-      if (response.statusCode == 200) {
-        _showMsg("Account Verified! Going to Login...", isError: false);
-        if (mounted) Navigator.of(context).pop();
-      } else {
-        final error = jsonDecode(response.body);
-        _showMsg(error['detail'] ?? "Error creating account", isError: true);
-      }
-    } catch (e) {
-      _showMsg("Server Error", isError: true);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+
+    final response = await widget.authRepository.register(
+      username: _usernameController.text,
+      email: _emailController.text,
+      password: _passwordController.text,
+      code: _codeController.text,
+    );
+
+    if (response.status == AuthStatus.success) {
+      _showMsg("Account Verified! Going to Login...", isError: false);
+      if (mounted) Navigator.of(context).pop();
+    } else {
+      _showMsg(response.errorMessage ?? "Error creating account", isError: true);
     }
+
+    if (mounted) setState(() => _isLoading = false);
   }
 
   void _showMsg(String msg, {required bool isError}) {

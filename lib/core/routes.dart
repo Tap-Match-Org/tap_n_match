@@ -31,8 +31,8 @@ class AppRoutes {
 
   static Map<String, WidgetBuilder> routes = {
     splash: (context) => const SplashPage(),
-    login: (context) => const LoginPage(),
-    register: (context) => const RegisterPage(),
+    login: (context) => LoginPage(),
+    register: (context) => RegisterPage(),
     banned: (context) {
       final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
       return BannedPage(reason: args?['reason']);
