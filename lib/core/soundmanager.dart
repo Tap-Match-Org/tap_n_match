@@ -45,8 +45,20 @@ class SoundManager {
     if (_isBgMusicPlaying) return;
     _isBgMusicPlaying = true;
     try {
+      if (!_bgMusicEnabled) {
+        _isBgMusicPlaying = false;
+        return;
+      }
       await _bgMusicPlayer.setVolume(_bgVolume);
+      if (!_bgMusicEnabled) {
+        _isBgMusicPlaying = false;
+        return;
+      }
       await _bgMusicPlayer.setReleaseMode(ReleaseMode.loop);
+      if (!_bgMusicEnabled) {
+        _isBgMusicPlaying = false;
+        return;
+      }
       await _bgMusicPlayer.play(AssetSource(_selectedBgMusic));
     } catch (e) {
       _isBgMusicPlaying = false;
@@ -84,7 +96,7 @@ class SoundManager {
   Future<void> setSelectedBgMusic(String assetPath) async {
     final wasPlaying = _isBgMusicPlaying;
     _selectedBgMusic = assetPath;
-    if (wasPlaying) {
+    if (wasPlaying && _bgMusicEnabled) {
       await stopBgMusic();
       await playBgMusic();
     }
@@ -102,7 +114,7 @@ class SoundManager {
       if (_selectedBgMusic != bgMusic) {
         final wasPlaying = _isBgMusicPlaying;
         _selectedBgMusic = bgMusic;
-        if (wasPlaying) {
+        if (wasPlaying && _bgMusicEnabled) {
           await stopBgMusic();
           await playBgMusic();
         }
