@@ -207,8 +207,9 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
             Center(
               child: SingleChildScrollView(
                 child: Container(
-                  width: MediaQuery.of(context).size.width * 0.85,
-                  padding: const EdgeInsets.all(24),
+                  width: MediaQuery.of(context).size.width * 0.7,
+                  constraints: const BoxConstraints(maxWidth: 450),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: const Color(0xFFD9D9D9),
                     borderRadius: BorderRadius.circular(15),
@@ -221,12 +222,12 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
                         'Player Support',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.pixelifySans(
-                          fontSize: 36,
+                          fontSize: 28,
                           fontWeight: FontWeight.bold,
                           color: Colors.black,
                         ),
                       ),
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 20),
                       _buildSupportOption(
                         context,
                         key: _feedbackKey,
@@ -236,7 +237,7 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
                         color: Colors.blue.shade400,
                         route: '/support/player_feedback',
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       _buildSupportOption(
                         context,
                         key: _bugReportKey,
@@ -246,7 +247,7 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
                         color: Colors.orange.shade400,
                         route: '/support/bug_report',
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       _buildSupportOption(
                         context,
                         key: _banAppealKey,
@@ -289,7 +290,7 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
       key: key,
       onTap: () => _openSupport(context, route),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(12),
@@ -298,16 +299,16 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
         child: Row(
           children: [
             Container(
-              width: 56,
-              height: 56,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: color,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.black, width: 1.5),
               ),
-              child: Icon(icon, color: Colors.white, size: 32),
+              child: Icon(icon, color: Colors.white, size: 24),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,23 +316,23 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
                   Text(
                     title,
                     style: GoogleFonts.pixelifySans(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Colors.black,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     description,
                     style: GoogleFonts.pixelifySans(
-                      fontSize: 12,
+                      fontSize: 10,
                       color: Colors.black87,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios, color: color, size: 20),
+            Icon(Icons.arrow_forward_ios, color: color, size: 16),
           ],
         ),
       ),

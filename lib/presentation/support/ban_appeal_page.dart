@@ -103,8 +103,9 @@ class _BanAppealPageState extends State<BanAppealPage> {
             Center(
               child: SingleChildScrollView(
                 child: Container(
-                  width: MediaQuery.of(context).size.width * 0.85,
-                  padding: const EdgeInsets.all(24),
+                  width: MediaQuery.of(context).size.width * 0.7,
+                  constraints: const BoxConstraints(maxWidth: 450),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: const Color(0xFFD9D9D9),
                     borderRadius: BorderRadius.circular(15),
@@ -117,12 +118,12 @@ class _BanAppealPageState extends State<BanAppealPage> {
                         'Ban Appeal',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.pixelifySans(
-                          fontSize: 32,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: Colors.black,
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
                       if (_successMessage != null) ...[
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -174,7 +175,7 @@ class _BanAppealPageState extends State<BanAppealPage> {
                             Text(
                               'Username: <Your Username>',
                               style: GoogleFonts.pixelifySans(
-                                fontSize: 13,
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
@@ -183,7 +184,7 @@ class _BanAppealPageState extends State<BanAppealPage> {
                             Text(
                               'Player ID: ${widget.userId}',
                               style: GoogleFonts.pixelifySans(
-                                fontSize: 13,
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
@@ -192,7 +193,7 @@ class _BanAppealPageState extends State<BanAppealPage> {
                             Text(
                               'Reason to Unban:',
                               style: GoogleFonts.pixelifySans(
-                                fontSize: 13,
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black,
                               ),
@@ -200,10 +201,10 @@ class _BanAppealPageState extends State<BanAppealPage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       TextField(
                         controller: _appealController,
-                        maxLines: 8,
+                        maxLines: 6,
                         decoration: InputDecoration(
                           labelText: 'Your Appeal',
                           hintText: 'Please explain why you believe your ban should be lifted...',

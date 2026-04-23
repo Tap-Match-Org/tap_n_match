@@ -102,8 +102,9 @@ class _PlayerFeedbackPageState extends State<PlayerFeedbackPage> {
             Center(
               child: SingleChildScrollView(
                 child: Container(
-                  width: MediaQuery.of(context).size.width * 0.85,
-                  padding: const EdgeInsets.all(24),
+                  width: MediaQuery.of(context).size.width * 0.7,
+                  constraints: const BoxConstraints(maxWidth: 450),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: const Color(0xFFD9D9D9),
                     borderRadius: BorderRadius.circular(15),
@@ -116,12 +117,12 @@ class _PlayerFeedbackPageState extends State<PlayerFeedbackPage> {
                         'Player Feedback',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.pixelifySans(
-                          fontSize: 32,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: Colors.black,
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
                       if (_successMessage != null) ...[
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -164,14 +165,14 @@ class _PlayerFeedbackPageState extends State<PlayerFeedbackPage> {
                         'Share your suggestions and concerns to help us improve the game',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.pixelifySans(
-                          fontSize: 14,
+                          fontSize: 12,
                           color: Colors.black87,
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
                       TextField(
                         controller: _feedbackController,
-                        maxLines: 8,
+                        maxLines: 6,
                         decoration: InputDecoration(
                           labelText: 'Your Feedback',
                           hintText: 'Share your thoughts, suggestions, and concerns...',
