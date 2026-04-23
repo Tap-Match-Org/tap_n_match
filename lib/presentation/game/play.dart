@@ -53,6 +53,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
   late List<int> userPattern;
   late int secondsLeft;
   Timer? timer;
+  Timer? _countdownTimer;
   Timer? pauseShuffleTimer;
   Timer? _topSnackBarTimer;
   OverlayEntry? _topSnackBarEntry;
@@ -148,6 +149,18 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
             achievementCount = data['achievement_count'] ?? 0;
           });
         }
+
+        // Sync SoundManager settings
+        await soundManager.setTapSoundEnabled(data['tap_sound_enabled'] == true || data['tap_sound_enabled'] == 1 || data['tap_sound_enabled'] == null);
+        await soundManager.setBgMusicEnabled(data['bg_music_enabled'] == true || data['bg_music_enabled'] == 1 || data['bg_music_enabled'] == null);
+        await soundManager.setTapVolume((data['tap_volume'] as num?)?.toDouble() ?? 1.0);
+        await soundManager.setBgVolume((data['bg_volume'] as num?)?.toDouble() ?? 0.5);
+        await soundManager.setColorblindMode(data['colorblind_mode'] == true || data['colorblind_mode'] == 1);
+        
+        await soundManager.updateSettings(
+          tapSound: data['selected_tap_sound'],
+          bgMusic: data['selected_bg_music'],
+        );
       }
     } catch (e) {
       debugPrint("Error loading theme: $e");
@@ -281,7 +294,8 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
       _countdownTime = 3;
     });
 
-    Timer.periodic(const Duration(seconds: 1), (t) {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
         return;
@@ -1011,6 +1025,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
   void dispose() {
     _confettiController.dispose();
     timer?.cancel();
+    _countdownTimer?.cancel();
     pauseShuffleTimer?.cancel();
     _topSnackBarTimer?.cancel();
     _topSnackBarEntry?.remove();

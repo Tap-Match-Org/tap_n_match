@@ -119,17 +119,16 @@ class _MainMenuPageState extends State<MainMenuPage>
         });
 
         // Update sound settings
-        await soundManager.setTapSoundEnabled(data['tap_sound_enabled'] ?? true);
-        await soundManager.setBgMusicEnabled(data['bg_music_enabled'] ?? true);
+        await soundManager.setTapSoundEnabled(data['tap_sound_enabled'] == true || data['tap_sound_enabled'] == 1 || data['tap_sound_enabled'] == null);
+        await soundManager.setBgMusicEnabled(data['bg_music_enabled'] == true || data['bg_music_enabled'] == 1 || data['bg_music_enabled'] == null);
         await soundManager.setTapVolume((data['tap_volume'] as num?)?.toDouble() ?? 1.0);
         await soundManager.setBgVolume((data['bg_volume'] as num?)?.toDouble() ?? 0.5);
-        await soundManager.setColorblindMode(data['colorblind_mode'] ?? false);
-        
+        await soundManager.setColorblindMode(data['colorblind_mode'] == true || data['colorblind_mode'] == 1);
+
         await soundManager.updateSettings(
           tapSound: data['selected_tap_sound'],
           bgMusic: data['selected_bg_music'],
         );
-
         _queueTutorialIfNeeded(data);
       }
     } catch (e) {

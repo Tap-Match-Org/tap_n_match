@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/persistence_service.dart';
-import 'package:tap_n_match/core/api_config.dart';
+import 'package:tap_n_match/repository/auth_repository.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final AuthRepository authRepository;
+
+  LoginPage({super.key, AuthRepository? authRepository})
+      : authRepository = authRepository ?? AuthRepository();
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -51,56 +52,47 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    // --- GUEST ACCOUNT BYPASS FOR PHONE TESTING ---
+    if (username == 'Guest' && password == 'kazuya143') {
+      const guestId = 9999;
+      await PersistenceService.saveUserId(guestId);
+      await PersistenceService.saveUsername('Guest');
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed(
+          '/menu',
+          arguments: {'user_id': guestId},
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    try {
-      final response = await http.post(
-        ApiConfig.getUri('/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'username': username,
-          'password': password,
-        }),
-      );
+    final response = await widget.authRepository.login(username, password);
 
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final userId = (data['user_id'] as num).toInt();
-        final loggedInUsername = data['username'] as String;
-
-        // Save session
-        await PersistenceService.saveUserId(userId);
-        await PersistenceService.saveUsername(loggedInUsername);
-        
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed(
-            '/menu',
-            arguments: {'user_id': userId},
-          );
-        }
-      } else if (response.statusCode == 403) {
-        final errorData = jsonDecode(response.body);
-        final detail = errorData['detail'];
-        String? reason;
-        if (detail is Map) {
-          reason = detail['reason'];
-        }
-        if (mounted) {
-          Navigator.of(context).pushNamed(
-            '/banned',
-            arguments: {'reason': reason},
-          );
-        }
-      } else {
-        final errorData = jsonDecode(response.body);
-        _showError(errorData['detail'] ?? 'Invalid username or password');
+    if (response.status == AuthStatus.success) {
+      // Save session
+      await PersistenceService.saveUserId(response.userId!);
+      await PersistenceService.saveUsername(response.username!);
+      
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed(
+          '/menu',
+          arguments: {'user_id': response.userId},
+        );
       }
-    } catch (e) {
-      _showError("Can't connect to server. Is FastAPI running?");
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    } else if (response.status == AuthStatus.banned) {
+      if (mounted) {
+        Navigator.of(context).pushNamed(
+          '/banned',
+          arguments: {'reason': response.banReason},
+        );
+      }
+    } else {
+      _showError(response.errorMessage ?? 'An error occurred');
     }
+
+    if (mounted) setState(() => _isLoading = false);
   }
 
   void _showError(String message) {
