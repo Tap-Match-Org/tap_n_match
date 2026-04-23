@@ -45,6 +45,7 @@ STANDARD_TUTORIAL_IDS = (
     "profile",
     "play",
     "daily_challenge",
+    "shop",
     "leaderboards",
     "achievements",
     "themes",
