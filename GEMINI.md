@@ -47,6 +47,7 @@ This file serves as the source of truth for the current state of the Tap & Match
 
 ### 8. Bug Fixes & Test Stability
 - **Shop Tutorial Tests:** Fixed compilation errors in `shop_tutorial_test.dart` by correctly passing `ShopRepository` instead of `httpClient` to `ShopPage`. Verified that all shop-related presentation and unit tests are passing.
+- **Tutorial Overlay Layout:** Repositioned tutorial cards in the Main Menu, Game, and Shop pages to the opposite side of highlighted items. This ensures that the tutorial content never covers the UI elements being explained.
 
 ## 🛠️ Current Project State
 - **Backend:** `backend/main.py` is updated with all point systems and shop endpoints. Tested via `pytest`.
