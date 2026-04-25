@@ -94,7 +94,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           title: 'Copy This Pattern',
           description:
               'The left boxes show the pattern you need to match. Study the colors before you start tapping.',
-          cardPosition: TutorialCardPosition.topLeft,
+          cardPosition: TutorialCardPosition.bottomRight,
           showArrow: false,
         ),
         TutorialStep(
@@ -102,7 +102,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           title: 'Tap Your Boxes',
           description:
               'Tap the boxes on your grid to cycle through colors until every box matches the target pattern.',
-          cardPosition: TutorialCardPosition.topRight,
+          cardPosition: TutorialCardPosition.bottomLeft,
           showArrow: false,
         ),
         TutorialStep(
@@ -110,14 +110,14 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           title: 'Finish The Level',
           description:
               'When your grid matches the target, tap Done. Clear the pattern before the timer reaches zero to finish the level.',
-          cardPosition: TutorialCardPosition.topCenter,
+          cardPosition: TutorialCardPosition.bottomRight,
         ),
         TutorialStep(
           targetKey: _scoreBarKey,
           title: 'How Scoring Works',
           description:
               'Your score increases from base level points, a fast-finish bonus when you clear early, and a perfect bonus for clean matches.',
-          cardPosition: TutorialCardPosition.bottomLeft,
+          cardPosition: TutorialCardPosition.bottomRight,
         ),
       ];
 
