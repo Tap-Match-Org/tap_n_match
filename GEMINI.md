@@ -45,6 +45,9 @@ This file serves as the source of truth for the current state of the Tap & Match
 - **Consistency:** Maintained the pixelated theme and added a step-by-step progress indicator.
 - **Architecture:** Moved registration logic into a dedicated `RegisterUser` use case in the application layer.
 
+### 8. Bug Fixes & Test Stability
+- **Shop Tutorial Tests:** Fixed compilation errors in `shop_tutorial_test.dart` by correctly passing `ShopRepository` instead of `httpClient` to `ShopPage`. Verified that all shop-related presentation and unit tests are passing.
+
 ## 🛠️ Current Project State
 - **Backend:** `backend/main.py` is updated with all point systems and shop endpoints. Tested via `pytest`.
 - **Database:** `users.db` schema includes all new fields (`banked_points`, `lifetime_points`, `unlocked_bg_music`).

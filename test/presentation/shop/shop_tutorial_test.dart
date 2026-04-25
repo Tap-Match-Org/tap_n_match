@@ -7,10 +7,12 @@ import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/api_config.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
 import 'package:tap_n_match/presentation/shop/shop_page.dart';
+import 'package:tap_n_match/repository/shop_repository.dart';
 import '../../mocks/mock_http_client.dart';
 
 void main() {
   late MockClient mockClient;
+  late ShopRepository shopRepository;
 
   setUpAll(() {
     registerFallbackValue(ApiConfig.getUri('/users/1'));
@@ -18,6 +20,7 @@ void main() {
 
   setUp(() {
     mockClient = MockClient();
+    shopRepository = ShopRepository(client: mockClient);
   });
 
   testWidgets('ShopPage triggers tutorial when pendingTutorials contains shop', (WidgetTester tester) async {
@@ -37,10 +40,10 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: ShopPage(httpClient: mockClient),
+        home: ShopPage(shopRepository: shopRepository),
         onGenerateRoute: (settings) {
           return MaterialPageRoute(
-            builder: (context) => ShopPage(httpClient: mockClient),
+            builder: (context) => ShopPage(shopRepository: shopRepository),
             settings: const RouteSettings(arguments: {'user_id': 1}),
           );
         },
