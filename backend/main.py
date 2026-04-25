@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException, status, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import json
 import smtplib, random
 from email.message import EmailMessage
 import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 ADMIN_KEY = "tap_n_match_admin_2026" # Example hardcoded key
 
@@ -52,6 +53,30 @@ STANDARD_TUTORIAL_IDS = (
     "support",
 )
 TUTORIAL_IDS = (WELCOME_TUTORIAL_ID, *STANDARD_TUTORIAL_IDS)
+
+ACTIVITY_EVENT_LABELS = {
+    "account_registered": "Account Registered",
+    "level_completed": "Level Completed",
+    "shop_purchase": "Shop Purchase",
+    "achievement_claimed": "Achievement Claimed",
+    "daily_challenge_completed": "Daily Challenge Completed",
+    "tutorial_completed": "Tutorial Completed",
+    "theme_selected": "Theme Selected",
+    "tap_sound_selected": "Tap Sound Selected",
+    "bg_music_selected": "Background Music Selected",
+    "profile_picture_updated": "Profile Picture Updated",
+    "settings_updated": "Settings Updated",
+    "username_changed": "Username Changed",
+    "email_changed": "Email Changed",
+    "appeal_submitted": "Appeal Submitted",
+    "support_ticket_submitted": "Support Ticket Submitted",
+    "report_submitted": "Report Submitted",
+    "account_reset": "Account Reset",
+    "admin_points_adjusted": "Admin Points Adjusted",
+    "admin_progress_reset": "Admin Progress Reset",
+    "admin_ban": "Admin Ban",
+    "admin_unban": "Admin Unban",
+}
 
 ACHIEVEMENT_CATALOG = [
     {
@@ -471,6 +496,17 @@ def init_db():
             timestamp TEXT
         )
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS player_activity_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            metadata TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL
+        )
+    """)
     
     # Try adding new columns to existing DBs safely
     columns_to_add = [
@@ -535,6 +571,9 @@ def init_db():
     cursor.execute(
         "UPDATE users SET claimed_rewards = '' WHERE claimed_rewards IS NULL"
     )
+    cursor.execute(
+        "UPDATE users SET completed_tutorials = '' WHERE completed_tutorials IS NULL"
+    )
     conn.commit()
     conn.close()
 
@@ -588,6 +627,10 @@ class UserSettingsUpdateRequest(BaseModel):
     colorblind_mode: bool
 
 
+def current_timestamp() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
 def split_csv(raw_value: str | None) -> list[str]:
     if not raw_value:
         return []
@@ -597,6 +640,81 @@ def split_csv(raw_value: str | None) -> list[str]:
 def join_csv(values: list[str]) -> str:
     unique_values = list(dict.fromkeys(value.strip() for value in values if value and value.strip()))
     return ",".join(unique_values)
+
+
+def parse_json(raw_value: str | None) -> dict:
+    if not raw_value:
+        return {}
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def log_player_activity(
+    cursor: sqlite3.Cursor,
+    user_id: int,
+    event_type: str,
+    summary: str,
+    metadata: dict | None = None,
+) -> None:
+    cursor.execute(
+        """
+        INSERT INTO player_activity_logs (user_id, event_type, summary, metadata, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            user_id,
+            event_type,
+            summary,
+            json.dumps(metadata or {}, separators=(",", ":"), ensure_ascii=True),
+            current_timestamp(),
+        ),
+    )
+
+
+def serialize_activity_row(row: sqlite3.Row | None) -> dict | None:
+    if not row:
+        return None
+    return {
+        "id": row["id"],
+        "user_id": row["user_id"],
+        "username": row["username"] if "username" in row.keys() else None,
+        "event_type": row["event_type"],
+        "event_label": ACTIVITY_EVENT_LABELS.get(row["event_type"], row["event_type"].replace("_", " ").title()),
+        "summary": row["summary"],
+        "metadata": parse_json(row["metadata"]) if "metadata" in row.keys() else {},
+        "created_at": row["created_at"],
+    }
+
+
+def get_recent_activity(cursor: sqlite3.Cursor, user_id: int, limit: int = 20) -> list[dict]:
+    rows = cursor.execute(
+        """
+        SELECT id, user_id, event_type, summary, metadata, created_at
+        FROM player_activity_logs
+        WHERE user_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+        """,
+        (user_id, limit),
+    ).fetchall()
+    return [serialize_activity_row(row) for row in rows]
+
+
+def get_latest_activity(cursor: sqlite3.Cursor, user_id: int, event_type: str) -> dict | None:
+    row = cursor.execute(
+        """
+        SELECT id, user_id, event_type, summary, metadata, created_at
+        FROM player_activity_logs
+        WHERE user_id = ? AND event_type = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """,
+        (user_id, event_type),
+    ).fetchone()
+    return serialize_activity_row(row)
 
 
 def count_unlocked_themes(unlocked_themes: str | None) -> int:
@@ -719,6 +837,32 @@ def calculate_achievement_count(user_row: sqlite3.Row) -> int:
     return evaluate_achievements(user_row)["achievement_count"]
 
 
+def sanitize_admin_user_payload(user_row: sqlite3.Row) -> dict:
+    user_payload = build_user_payload(user_row)
+    user_payload.pop("password", None)
+    return user_payload
+
+
+def infer_latest_claimed_achievement(user_row: sqlite3.Row) -> dict | None:
+    claimed_rewards = split_csv(user_row["claimed_rewards"]) if "claimed_rewards" in user_row.keys() else []
+    if not claimed_rewards:
+        return None
+
+    latest_id = claimed_rewards[-1]
+    achievement = next((item for item in ACHIEVEMENT_CATALOG if item["id"] == latest_id), None)
+    if not achievement:
+        return {"achievement_id": latest_id, "inferred": True}
+
+    return {
+        "achievement_id": latest_id,
+        "title": achievement["title"],
+        "reward_type": achievement.get("reward_type"),
+        "reward_name": achievement.get("reward_name"),
+        "reward_id": achievement.get("reward_id"),
+        "inferred": True,
+    }
+
+
 def build_user_payload(user_row: sqlite3.Row) -> dict:
     user_dict = dict(user_row)
     achievement_state = evaluate_achievements(user_row)
@@ -803,7 +947,7 @@ async def register(request: RegisterRequest):
 
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
-    today = date.today().isoformat()
+    created_at = current_timestamp()
     try:
         cursor.execute(
             """
@@ -817,7 +961,15 @@ async def register(request: RegisterRequest):
             )
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (request.username, request.email, request.password, today, 1, ""),
+            (request.username, request.email, request.password, created_at, 1, ""),
+        )
+        user_id = cursor.lastrowid
+        log_player_activity(
+            cursor,
+            user_id,
+            "account_registered",
+            "Player account created.",
+            {"username": request.username, "email": request.email},
         )
         conn.commit()
     except sqlite3.IntegrityError:
@@ -941,6 +1093,17 @@ async def complete_tutorial(user_id: int, tutorial_id: str):
         """,
         (tutorial_enabled, join_csv(completed_tutorials), user_id),
     )
+    log_player_activity(
+        cursor,
+        user_id,
+        "tutorial_completed",
+        f"Completed the {normalized_tutorial_id} tutorial.",
+        {
+            "tutorial_id": normalized_tutorial_id,
+            "tutorial_enabled": bool(tutorial_enabled),
+            "completed_tutorials": completed_tutorials,
+        },
+    )
     conn.commit()
 
     updated_user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -1042,6 +1205,24 @@ async def complete_level(user_id: int, request: LevelCompletionRequest):
             user_id,
         ),
     )
+    log_player_activity(
+        cursor,
+        user_id,
+        "level_completed",
+        f"Cleared level {request.level} on {request.difficulty.strip().lower()} for {score_breakdown['total_earned']} points.",
+        {
+            "level": request.level,
+            "difficulty": request.difficulty.strip().lower(),
+            "seconds_left": request.seconds_left,
+            "used_done_button": request.used_done_button,
+            "perfect_run": request.perfect_run,
+            "boxes_tapped": max(request.boxes_tapped, 0),
+            "earned_points": score_breakdown["total_earned"],
+            "base_points": score_breakdown["base_points"],
+            "fast_bonus": score_breakdown["fast_bonus"],
+            "perfect_bonus": score_breakdown["perfect_bonus"],
+        },
+    )
     conn.commit()
 
     updated_user = cursor.execute(
@@ -1141,6 +1322,18 @@ async def buy_item(user_id: int, request: BuyItemRequest):
     
     cursor.execute(f"UPDATE users SET {inventory_col} = ?, banked_points = ? WHERE id = ?", 
                    (new_inventory, new_banked, user_id))
+    log_player_activity(
+        cursor,
+        user_id,
+        "shop_purchase",
+        f"Bought a {request.item_type.replace('_', ' ')} from the shop.",
+        {
+            "item_id": request.item_id,
+            "item_type": request.item_type,
+            "price": request.price,
+            "banked_points_after": new_banked,
+        },
+    )
     conn.commit()
     conn.close()
     
@@ -1188,9 +1381,21 @@ async def update_username(user_id: int, request: UsernameUpdateRequest):
             pass
 
     today = date.today().isoformat()
+    previous_username = cursor.execute(
+        "SELECT username FROM users WHERE id = ?",
+        (user_id,),
+    ).fetchone()["username"]
+
     cursor.execute(
         "UPDATE users SET username = ?, last_username_change_date = ? WHERE id = ?",
         (new_username, today, user_id),
+    )
+    log_player_activity(
+        cursor,
+        user_id,
+        "username_changed",
+        f"Changed username from {previous_username} to {new_username}.",
+        {"previous_username": previous_username, "new_username": new_username},
     )
     conn.commit()
     conn.close()
@@ -1206,7 +1411,7 @@ async def update_password(user_id: int, request: PasswordUpdateRequest):
 
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
-    user = cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+    user = cursor.execute("SELECT id, email FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
         conn.close()
         raise HTTPException(status_code=404, detail="User not found")
@@ -1239,6 +1444,13 @@ async def update_email(user_id: int, request: EmailUpdateRequest):
         raise HTTPException(status_code=400, detail="Email already exists.")
 
     cursor.execute("UPDATE users SET email = ? WHERE id = ?", (new_email, user_id))
+    log_player_activity(
+        cursor,
+        user_id,
+        "email_changed",
+        "Updated account email address.",
+        {"previous_email": user["email"], "new_email": new_email},
+    )
     conn.commit()
     conn.close()
     return {"status": "success", "email": new_email}
@@ -1252,12 +1464,22 @@ async def update_profile_picture(user_id: int, request: ProfilePictureUpdateRequ
 
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
-    user = cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+    user = cursor.execute("SELECT id, profile_picture FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
         conn.close()
         raise HTTPException(status_code=404, detail="User not found")
 
     cursor.execute("UPDATE users SET profile_picture = ? WHERE id = ?", (profile_picture, user_id))
+    log_player_activity(
+        cursor,
+        user_id,
+        "profile_picture_updated",
+        "Updated profile picture.",
+        {
+            "previous_profile_picture": user["profile_picture"],
+            "new_profile_picture": profile_picture,
+        },
+    )
     conn.commit()
     conn.close()
     return {"status": "success", "message": "Profile picture updated."}
@@ -1267,7 +1489,13 @@ async def update_profile_picture(user_id: int, request: ProfilePictureUpdateRequ
 async def update_user_settings(user_id: int, request: UserSettingsUpdateRequest):
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
-    user = cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+    user = cursor.execute(
+        """
+        SELECT id, tap_sound_enabled, bg_music_enabled, tap_volume, bg_volume, colorblind_mode
+        FROM users WHERE id = ?
+        """,
+        (user_id,),
+    ).fetchone()
     if not user:
         conn.close()
         raise HTTPException(status_code=404, detail="User not found")
@@ -1290,6 +1518,28 @@ async def update_user_settings(user_id: int, request: UserSettingsUpdateRequest)
             1 if request.colorblind_mode else 0,
             user_id,
         ),
+    )
+    log_player_activity(
+        cursor,
+        user_id,
+        "settings_updated",
+        "Updated gameplay and accessibility settings.",
+        {
+            "before": {
+                "tap_sound_enabled": bool(user["tap_sound_enabled"]),
+                "bg_music_enabled": bool(user["bg_music_enabled"]),
+                "tap_volume": user["tap_volume"],
+                "bg_volume": user["bg_volume"],
+                "colorblind_mode": bool(user["colorblind_mode"]),
+            },
+            "after": {
+                "tap_sound_enabled": request.tap_sound_enabled,
+                "bg_music_enabled": request.bg_music_enabled,
+                "tap_volume": request.tap_volume,
+                "bg_volume": request.bg_volume,
+                "colorblind_mode": request.colorblind_mode,
+            },
+        },
     )
     conn.commit()
     conn.close()
@@ -1334,6 +1584,13 @@ async def reset_account(user_id: int):
         """,
         (DEFAULT_THEME, DEFAULT_TAP_SOUND, DEFAULT_TAP_SOUND, DEFAULT_BG_MUSIC, DEFAULT_BG_MUSIC, user_id),
     )
+    log_player_activity(
+        cursor,
+        user_id,
+        "account_reset",
+        "Reset account progress and inventory to defaults.",
+        {},
+    )
     conn.commit()
     conn.close()
     return {"status": "success", "message": "Account progress reset."}
@@ -1344,7 +1601,7 @@ async def select_theme(user_id: int, theme_color: str):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    user = cursor.execute("SELECT unlocked_themes FROM users WHERE id = ?", (user_id,)).fetchone()
+    user = cursor.execute("SELECT unlocked_themes, selected_theme FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
         conn.close()
         raise HTTPException(status_code=404, detail="User not found")
@@ -1355,6 +1612,13 @@ async def select_theme(user_id: int, theme_color: str):
         raise HTTPException(status_code=400, detail="Theme is not unlocked")
 
     cursor.execute("UPDATE users SET selected_theme = ? WHERE id = ?", (theme_color, user_id))
+    log_player_activity(
+        cursor,
+        user_id,
+        "theme_selected",
+        "Changed selected theme.",
+        {"previous_theme": user["selected_theme"], "selected_theme": theme_color},
+    )
     conn.commit()
     conn.close()
 
@@ -1367,7 +1631,7 @@ async def select_tap_sound(user_id: int, asset_path: str):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    user = cursor.execute("SELECT unlocked_tap_sounds FROM users WHERE id = ?", (user_id,)).fetchone()
+    user = cursor.execute("SELECT unlocked_tap_sounds, selected_tap_sound FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
         conn.close()
         raise HTTPException(status_code=404, detail="User not found")
@@ -1378,6 +1642,13 @@ async def select_tap_sound(user_id: int, asset_path: str):
         raise HTTPException(status_code=400, detail="Tap sound is not unlocked")
 
     cursor.execute("UPDATE users SET selected_tap_sound = ? WHERE id = ?", (asset_path, user_id))
+    log_player_activity(
+        cursor,
+        user_id,
+        "tap_sound_selected",
+        "Changed selected tap sound.",
+        {"previous_tap_sound": user["selected_tap_sound"], "selected_tap_sound": asset_path},
+    )
     conn.commit()
     conn.close()
     return {"status": "success", "selected_tap_sound": asset_path}
@@ -1389,7 +1660,7 @@ async def select_bg_music(user_id: int, asset_path: str):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    user = cursor.execute("SELECT unlocked_bg_music FROM users WHERE id = ?", (user_id,)).fetchone()
+    user = cursor.execute("SELECT unlocked_bg_music, selected_bg_music FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
         conn.close()
         raise HTTPException(status_code=404, detail="User not found")
@@ -1400,6 +1671,13 @@ async def select_bg_music(user_id: int, asset_path: str):
         raise HTTPException(status_code=400, detail="Background music is not unlocked")
 
     cursor.execute("UPDATE users SET selected_bg_music = ? WHERE id = ?", (asset_path, user_id))
+    log_player_activity(
+        cursor,
+        user_id,
+        "bg_music_selected",
+        "Changed selected background music.",
+        {"previous_bg_music": user["selected_bg_music"], "selected_bg_music": asset_path},
+    )
     conn.commit()
     conn.close()
     return {"status": "success", "selected_bg_music": asset_path}
@@ -1466,6 +1744,19 @@ async def claim_achievement(user_id: int, achievement_id: str):
             join_csv(claimed_rewards),
             user_id,
         ),
+    )
+    log_player_activity(
+        cursor,
+        user_id,
+        "achievement_claimed",
+        f"Claimed the {achievement['title']} achievement reward.",
+        {
+            "achievement_id": achievement_id,
+            "title": achievement["title"],
+            "reward_type": reward_type,
+            "reward_id": reward_id,
+            "reward_name": achievement["reward_name"],
+        },
     )
     conn.commit()
 
@@ -1553,6 +1844,17 @@ async def complete_challenge(user_id: int, reward_color: str):
         SET streak = ?, last_challenge_date = ?, unlocked_themes = ?, completed_daily_challenges = ?
         WHERE id = ?
     """, (new_streak, today, new_themes, new_completed_daily_challenges, user_id))
+    log_player_activity(
+        cursor,
+        user_id,
+        "daily_challenge_completed",
+        "Completed the daily challenge and earned a theme reward.",
+        {
+            "reward_color": reward_color,
+            "new_streak": new_streak,
+            "completed_daily_challenges": new_completed_daily_challenges,
+        },
+    )
     
     conn.commit()
     conn.close()
@@ -1591,16 +1893,26 @@ async def mark_reward_seen(user_id: int, reward_id: str):
 async def get_admin_stats():
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
+    today = date.today().isoformat()
 
     total_users = cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     banned_users = cursor.execute("SELECT COUNT(*) FROM users WHERE is_banned = 1").fetchone()[0]
     pending_reports = cursor.execute("SELECT COUNT(*) FROM reports WHERE status = 'Pending'").fetchone()[0]
+    pending_appeals = cursor.execute("SELECT COUNT(*) FROM appeals WHERE status = 'Pending'").fetchone()[0]
+    open_tickets = cursor.execute("SELECT COUNT(*) FROM support_tickets WHERE status = 'Open'").fetchone()[0]
+    new_users_today = cursor.execute(
+        "SELECT COUNT(*) FROM users WHERE created_at IS NOT NULL AND created_at LIKE ?",
+        (f"{today}%",),
+    ).fetchone()[0]
 
     conn.close()
     return {
         "total_users": total_users,
         "banned_users": banned_users,
-        "pending_reports": pending_reports
+        "pending_reports": pending_reports,
+        "pending_appeals": pending_appeals,
+        "open_tickets": open_tickets,
+        "new_users_today": new_users_today,
     }
 
 @app.get("/admin/users", dependencies=[Depends(verify_admin)])
@@ -1609,7 +1921,27 @@ async def get_admin_users(search: str = ""):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    query = "SELECT id, username, email, total_score, highest_level, is_banned, ban_reason, banked_points, lifetime_points FROM users"
+    query = """
+        SELECT
+            u.id,
+            u.username,
+            u.email,
+            u.total_score,
+            u.highest_level,
+            u.is_banned,
+            u.ban_reason,
+            u.banked_points,
+            u.lifetime_points,
+            u.created_at,
+            (
+                SELECT pal.created_at
+                FROM player_activity_logs pal
+                WHERE pal.user_id = u.id
+                ORDER BY pal.created_at DESC, pal.id DESC
+                LIMIT 1
+            ) AS latest_activity_at
+        FROM users u
+    """
     params = []
     
     if search:
@@ -1623,6 +1955,177 @@ async def get_admin_users(search: str = ""):
     
     return [dict(u) for u in users]
 
+
+@app.get("/admin/overview", dependencies=[Depends(verify_admin)])
+async def get_admin_overview():
+    conn = sqlite3.connect("users.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    stats = await get_admin_stats()
+
+    recent_activity_rows = cursor.execute(
+        """
+        SELECT pal.id, pal.user_id, pal.event_type, pal.summary, pal.metadata, pal.created_at, u.username
+        FROM player_activity_logs pal
+        JOIN users u ON u.id = pal.user_id
+        ORDER BY pal.created_at DESC, pal.id DESC
+        LIMIT 12
+        """
+    ).fetchall()
+
+    top_player_rows = cursor.execute(
+        """
+        SELECT id, username, lifetime_points, banked_points, highest_level, is_banned
+        FROM users
+        ORDER BY lifetime_points DESC, highest_level DESC, username COLLATE NOCASE ASC
+        LIMIT 5
+        """
+    ).fetchall()
+
+    reported_rows = cursor.execute(
+        """
+        SELECT
+            u.id,
+            u.username,
+            COUNT(r.id) AS report_count,
+            SUM(CASE WHEN r.status = 'Pending' THEN 1 ELSE 0 END) AS pending_report_count
+        FROM reports r
+        JOIN users u ON u.id = r.reported_id
+        GROUP BY u.id, u.username
+        ORDER BY pending_report_count DESC, report_count DESC, u.username COLLATE NOCASE ASC
+        LIMIT 5
+        """
+    ).fetchall()
+
+    pending_reports = cursor.execute(
+        """
+        SELECT id, reporter_id, reported_id, reason, timestamp, status
+        FROM reports
+        WHERE status = 'Pending'
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 5
+        """
+    ).fetchall()
+
+    pending_appeals = cursor.execute(
+        """
+        SELECT id, user_id, appeal_text, status, timestamp
+        FROM appeals
+        WHERE status = 'Pending'
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 5
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return {
+        "stats": stats,
+        "recent_activity": [serialize_activity_row(row) for row in recent_activity_rows],
+        "top_players": [dict(row) for row in top_player_rows],
+        "most_reported_players": [dict(row) for row in reported_rows],
+        "attention_queue": {
+            "pending_reports": [dict(row) for row in pending_reports],
+            "pending_appeals": [dict(row) for row in pending_appeals],
+        },
+    }
+
+
+@app.get("/admin/users/{user_id}/details", dependencies=[Depends(verify_admin)])
+async def get_admin_user_details(user_id: int):
+    conn = sqlite3.connect("users.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+
+    reports_filed = cursor.execute(
+        """
+        SELECT id, reporter_id, reported_id, reason, timestamp, status
+        FROM reports
+        WHERE reporter_id = ?
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 10
+        """,
+        (user_id,),
+    ).fetchall()
+    reports_against = cursor.execute(
+        """
+        SELECT id, reporter_id, reported_id, reason, timestamp, status
+        FROM reports
+        WHERE reported_id = ?
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 10
+        """,
+        (user_id,),
+    ).fetchall()
+    appeals = cursor.execute(
+        """
+        SELECT id, user_id, appeal_text, status, timestamp
+        FROM appeals
+        WHERE user_id = ?
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 10
+        """,
+        (user_id,),
+    ).fetchall()
+    support_tickets = cursor.execute(
+        """
+        SELECT id, user_id, type, message, status, timestamp
+        FROM support_tickets
+        WHERE user_id = ?
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 10
+        """,
+        (user_id,),
+    ).fetchall()
+
+    latest_purchase = get_latest_activity(cursor, user_id, "shop_purchase")
+    latest_achievement = get_latest_activity(cursor, user_id, "achievement_claimed") or infer_latest_claimed_achievement(user)
+    latest_daily_challenge = get_latest_activity(cursor, user_id, "daily_challenge_completed")
+    latest_level = get_latest_activity(cursor, user_id, "level_completed")
+    latest_theme_change = get_latest_activity(cursor, user_id, "theme_selected")
+    latest_tap_sound_change = get_latest_activity(cursor, user_id, "tap_sound_selected")
+    latest_bg_music_change = get_latest_activity(cursor, user_id, "bg_music_selected")
+    recent_activity = get_recent_activity(cursor, user_id, 25)
+
+    report_count = cursor.execute(
+        "SELECT COUNT(*) FROM reports WHERE reported_id = ?",
+        (user_id,),
+    ).fetchone()[0]
+    pending_report_count = cursor.execute(
+        "SELECT COUNT(*) FROM reports WHERE reported_id = ? AND status = 'Pending'",
+        (user_id,),
+    ).fetchone()[0]
+
+    conn.close()
+
+    return {
+        "user": sanitize_admin_user_payload(user),
+        "latest": {
+            "purchase": latest_purchase,
+            "achievement": latest_achievement,
+            "daily_challenge": latest_daily_challenge,
+            "level_completion": latest_level,
+            "theme_change": latest_theme_change,
+            "tap_sound_change": latest_tap_sound_change,
+            "bg_music_change": latest_bg_music_change,
+        },
+        "moderation": {
+            "report_count": report_count,
+            "pending_report_count": pending_report_count,
+            "reports_filed": [dict(row) for row in reports_filed],
+            "reports_against": [dict(row) for row in reports_against],
+            "appeals": [dict(row) for row in appeals],
+            "support_tickets": [dict(row) for row in support_tickets],
+        },
+        "recent_activity": recent_activity,
+    }
+
 class AdjustPointsRequest(BaseModel):
     banked_points: int
     lifetime_points: int
@@ -1630,9 +2133,30 @@ class AdjustPointsRequest(BaseModel):
 @app.post("/admin/users/{user_id}/adjust-points", dependencies=[Depends(verify_admin)])
 async def adjust_points(user_id: int, request: AdjustPointsRequest):
     conn = sqlite3.connect("users.db")
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    user = cursor.execute(
+        "SELECT banked_points, lifetime_points FROM users WHERE id = ?",
+        (user_id,),
+    ).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+
     cursor.execute("UPDATE users SET banked_points = ?, lifetime_points = ? WHERE id = ?", 
                    (request.banked_points, request.lifetime_points, user_id))
+    log_player_activity(
+        cursor,
+        user_id,
+        "admin_points_adjusted",
+        "Admin adjusted player points.",
+        {
+            "before_banked_points": user["banked_points"],
+            "before_lifetime_points": user["lifetime_points"],
+            "after_banked_points": request.banked_points,
+            "after_lifetime_points": request.lifetime_points,
+        },
+    )
     conn.commit()
     conn.close()
     return {"message": f"Points for user {user_id} adjusted successfully."}
@@ -1656,6 +2180,13 @@ async def admin_reset_user(user_id: int):
             streak = 0, last_challenge_date = NULL, daily_attempts = 0, last_attempt_date = NULL
         WHERE id = ?
     """, (user_id,))
+    log_player_activity(
+        cursor,
+        user_id,
+        "admin_progress_reset",
+        "Admin reset the player's progress.",
+        {},
+    )
     
     conn.commit()
     conn.close()
@@ -1669,6 +2200,13 @@ async def ban_user(user_id: int, request: BanRequest):
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", (request.reason, user_id))
+    log_player_activity(
+        cursor,
+        user_id,
+        "admin_ban",
+        "Admin banned the player.",
+        {"reason": request.reason},
+    )
     conn.commit()
     conn.close()
     return {"message": f"User {user_id} banned successfully."}
@@ -1678,6 +2216,13 @@ async def unban_user(user_id: int):
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET is_banned = 0, ban_reason = NULL WHERE id = ?", (user_id,))
+    log_player_activity(
+        cursor,
+        user_id,
+        "admin_unban",
+        "Admin removed the player's ban.",
+        {},
+    )
     conn.commit()
     conn.close()
     return {"message": f"User {user_id} unbanned successfully."}
@@ -1690,12 +2235,21 @@ class AppealRequest(BaseModel):
 async def submit_appeal(request: AppealRequest):
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
+    created_at = current_timestamp()
     cursor.execute(
         "INSERT INTO appeals (user_id, appeal_text, status, timestamp) VALUES (?, ?, 'Pending', ?)",
-        (request.user_id, request.appeal_text, str(date.today()))
+        (request.user_id, request.appeal_text, created_at)
     )
     conn.commit()
     appeal_id = cursor.lastrowid
+    log_player_activity(
+        cursor,
+        request.user_id,
+        "appeal_submitted",
+        "Submitted a ban appeal.",
+        {"appeal_id": appeal_id},
+    )
+    conn.commit()
     conn.close()
     return {"appeal_id": appeal_id, "message": "Appeal submitted successfully."}
 
@@ -1730,12 +2284,21 @@ class ReportRequest(BaseModel):
 async def submit_report(request: ReportRequest):
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
+    created_at = current_timestamp()
     cursor.execute(
         "INSERT INTO reports (reporter_id, reported_id, reason, timestamp, status) VALUES (?, ?, ?, ?, 'Pending')",
-        (request.reporter_id, request.reported_id, request.reason, str(date.today()))
+        (request.reporter_id, request.reported_id, request.reason, created_at)
     )
     conn.commit()
     report_id = cursor.lastrowid
+    log_player_activity(
+        cursor,
+        request.reporter_id,
+        "report_submitted",
+        "Submitted a player report.",
+        {"report_id": report_id, "reported_id": request.reported_id, "reason": request.reason},
+    )
+    conn.commit()
     conn.close()
     return {"report_id": report_id, "message": "Report submitted successfully."}
 
@@ -1770,12 +2333,21 @@ class SupportTicketRequest(BaseModel):
 async def submit_support_ticket(request: SupportTicketRequest):
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
+    created_at = current_timestamp()
     cursor.execute(
         "INSERT INTO support_tickets (user_id, type, message, status, timestamp) VALUES (?, ?, ?, 'Open', ?)",
-        (request.user_id, request.type, request.message, str(date.today()))
+        (request.user_id, request.type, request.message, created_at)
     )
     conn.commit()
     ticket_id = cursor.lastrowid
+    log_player_activity(
+        cursor,
+        request.user_id,
+        "support_ticket_submitted",
+        f"Submitted a support ticket for {request.type}.",
+        {"ticket_id": ticket_id, "type": request.type},
+    )
+    conn.commit()
     conn.close()
     return {"ticket_id": ticket_id, "message": "Support ticket submitted successfully."}
 
