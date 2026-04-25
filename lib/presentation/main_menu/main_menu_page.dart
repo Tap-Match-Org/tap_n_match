@@ -143,7 +143,7 @@ class _MainMenuPageState extends State<MainMenuPage>
           targetKey: _playButtonKey,
           title: 'Welcome to Tap & Match!',
           description: 'Tap Play to start the game.',
-          cardPosition: TutorialCardPosition.center,
+          cardPosition: TutorialCardPosition.topCenter,
           showSkip: false,
           cardOpacity: 0.7,
         ),
