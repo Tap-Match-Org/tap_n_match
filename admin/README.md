@@ -8,7 +8,7 @@ A comprehensive web-based moderation and support dashboard for the Tap & Match g
 - **Report Management**: Review user reports, approve/reject them
 - **Appeal Management**: Handle ban appeals from banned users
 - **Support Tickets**: Manage user support requests and feedback
-- **Admin Authentication**: Secure access with admin key
+- **Admin Authentication**: Secure access with approved Gmail verification and admin password
 
 ## Tech Stack
 
@@ -53,8 +53,10 @@ npm run preview
 ## Usage
 
 1. Open the dashboard in your browser
-2. Enter the admin key: `tap_n_match_admin_2026`
-3. View and manage:
+2. Enter one of the approved Gmail accounts
+3. Request the verification code sent to that inbox
+4. Log in using the admin password
+5. View and manage:
    - **Reports Tab**: Review user reports and take action
    - **Appeals Tab**: Review ban appeals and approve/reject them
    - **Support Tickets Tab**: View and close support requests
@@ -75,7 +77,7 @@ The dashboard communicates with these FastAPI endpoints:
 
 ## Notes
 
-- The admin key is stored in localStorage for session persistence
+- The admin session token is stored in localStorage for session persistence
 - The dashboard auto-refreshes stats every 30 seconds
 - All admin actions require valid authentication
 - The backend must be running on `http://localhost:8000`

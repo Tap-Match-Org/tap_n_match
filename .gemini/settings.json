@@ -1,0 +1,6 @@
+{
+  "experimental": {
+    "generalistProfile": true,
+    "contextManagement": true
+  }
+}

@@ -1,18 +1,47 @@
 from fastapi import FastAPI, HTTPException, status, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import json
-import smtplib, random
+import smtplib, random, secrets
 from email.message import EmailMessage
 import sqlite3
 from datetime import date, datetime, timedelta
 
 ADMIN_KEY = "tap_n_match_admin_2026" # Example hardcoded key
+ALLOWED_ADMIN_EMAILS = {
+    "jayshangodornes@gmail.com",
+    "lylleleonelviray@gmail.com",
+}
+ADMIN_CODE_TTL_MINUTES = 10
+ADMIN_SESSION_TTL_HOURS = 12
 
-async def verify_admin(x_admin_key: str = Header(...)):
-    if x_admin_key != ADMIN_KEY:
-        raise HTTPException(status_code=401, detail="Invalid Admin Key")
-    return x_admin_key
+
+async def verify_admin(
+    authorization: str | None = Header(default=None),
+    x_admin_token: str | None = Header(default=None),
+):
+    token = None
+    if authorization:
+        scheme, _, value = authorization.partition(" ")
+        if scheme.lower() == "bearer" and value:
+            token = value.strip()
+    if not token and x_admin_token:
+        token = x_admin_token.strip()
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing admin session")
+
+    session = admin_sessions.get(token)
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid admin session")
+
+    expires_at = session.get("expires_at")
+    if isinstance(expires_at, datetime) and expires_at <= datetime.now():
+        admin_sessions.pop(token, None)
+        raise HTTPException(status_code=401, detail="Admin session expired")
+
+    return session
 
 app = FastAPI()
 
@@ -24,10 +53,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serve game assets
+app.mount("/assets", StaticFiles(directory="assets"), name="assets")
+
 SENDER_EMAIL = "jayshangodornes@gmail.com"
 SENDER_PASSWORD = "pigp hsuz cawl rkqy"
 
 pending_codes = {}
+admin_pending_codes = {}
+admin_sessions = {}
 
 DEFAULT_THEME = "#A9A9A9"
 DEFAULT_TAP_SOUND = "audio/tap_sounds/default_tapSounds.mp3"
@@ -427,7 +461,7 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
-            unlocked_themes TEXT DEFAULT '', 
+            unlocked_themes TEXT DEFAULT '',
             selected_theme TEXT DEFAULT '#A9A9A9',
             last_username_change_date TEXT,
             profile_picture TEXT DEFAULT '',
@@ -436,6 +470,7 @@ def init_db():
             daily_attempts INTEGER DEFAULT 0,
             last_attempt_date TEXT,
             created_at TEXT,
+            last_active_at TEXT,
             total_score INTEGER DEFAULT 0,
             highest_score INTEGER DEFAULT 0,
             highest_level INTEGER DEFAULT 0,
@@ -463,8 +498,13 @@ def init_db():
             tutorial_enabled INTEGER DEFAULT 0,
             completed_tutorials TEXT DEFAULT ''
         )
-    """)
+        """)
 
+    # --- Migration: Add last_active_at if it doesn't exist ---
+    cursor.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "last_active_at" not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN last_active_at TEXT")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -583,6 +623,12 @@ init_db()
 class EmailRequest(BaseModel):
     email: str
 
+
+class AdminLoginRequest(BaseModel):
+    email: str
+    password: str
+    code: str
+
 class RegisterRequest(BaseModel):
     username: str
     email: str
@@ -631,6 +677,27 @@ def current_timestamp() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def send_email_code_message(email: str, code: str, subject: str):
+    msg = EmailMessage()
+    msg.set_content(f"Your verification code is: {code}")
+    msg["Subject"] = subject
+    msg["From"] = SENDER_EMAIL
+    msg["To"] = email
+
+    try:
+        print(f"[DEBUG] Generated code for {email}: {code}")
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+    except Exception:
+        print(f"[WARNING] Could not send email. Code: {code}")
+
+
 def split_csv(raw_value: str | None) -> list[str]:
     if not raw_value:
         return []
@@ -659,6 +726,7 @@ def log_player_activity(
     summary: str,
     metadata: dict | None = None,
 ) -> None:
+    timestamp = current_timestamp()
     cursor.execute(
         """
         INSERT INTO player_activity_logs (user_id, event_type, summary, metadata, created_at)
@@ -669,9 +737,11 @@ def log_player_activity(
             event_type,
             summary,
             json.dumps(metadata or {}, separators=(",", ":"), ensure_ascii=True),
-            current_timestamp(),
+            timestamp,
         ),
     )
+    # Also update last_active_at in users table
+    cursor.execute("UPDATE users SET last_active_at = ? WHERE id = ?", (timestamp, user_id))
 
 
 def serialize_activity_row(row: sqlite3.Row | None) -> dict | None:
@@ -921,28 +991,75 @@ def calculate_level_score(request: LevelCompletionRequest) -> dict:
 
 @app.post("/send-code")
 async def send_code(request: EmailRequest):
+    email = normalize_email(request.email)
     code = str(random.randint(100000, 999999))
-    pending_codes[request.email] = code
-    msg = EmailMessage()
-    msg.set_content(f"Your verification code is: {code}")
-    msg["Subject"] = "Tap & Match - Verification Code"
-    msg["From"] = SENDER_EMAIL
-    msg["To"] = request.email
-
-    try:
-        print(f"[DEBUG] Generated code for {request.email}: {code}")
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-    except Exception as e:
-        print(f"[WARNING] Could not send email. Code: {code}")
+    pending_codes[email] = code
+    send_email_code_message(email, code, "Tap & Match - Verification Code")
 
     return {"message": "Code sent successfully"}
 
+
+@app.post("/admin/send-code")
+async def send_admin_code(request: EmailRequest):
+    email = normalize_email(request.email)
+    if email not in ALLOWED_ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="This Gmail account is not allowed for admin access.")
+
+    code = str(random.randint(100000, 999999))
+    admin_pending_codes[email] = {
+        "code": code,
+        "expires_at": datetime.now() + timedelta(minutes=ADMIN_CODE_TTL_MINUTES),
+    }
+    send_email_code_message(email, code, "Tap & Match Admin - Verification Code")
+    return {"message": "Admin verification code sent successfully"}
+
+
+@app.post("/admin/login")
+async def admin_login(request: AdminLoginRequest):
+    email = normalize_email(request.email)
+    if email not in ALLOWED_ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="This Gmail account is not allowed for admin access.")
+    if request.password != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    pending_admin_code = admin_pending_codes.get(email)
+    if not pending_admin_code or pending_admin_code.get("code") != request.code:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+
+    expires_at = pending_admin_code.get("expires_at")
+    if isinstance(expires_at, datetime) and expires_at <= datetime.now():
+        admin_pending_codes.pop(email, None)
+        raise HTTPException(status_code=400, detail="Verification code expired")
+
+    admin_pending_codes.pop(email, None)
+    token = secrets.token_urlsafe(32)
+    admin_sessions[token] = {
+        "email": email,
+        "expires_at": datetime.now() + timedelta(hours=ADMIN_SESSION_TTL_HOURS),
+    }
+    return {
+        "message": "Admin login successful",
+        "token": token,
+        "email": email,
+        "expires_at": admin_sessions[token]["expires_at"].isoformat(timespec="seconds"),
+    }
+
+
+@app.post("/admin/logout")
+async def admin_logout(admin_session = Depends(verify_admin), authorization: str | None = Header(default=None), x_admin_token: str | None = Header(default=None)):
+    token = x_admin_token
+    if authorization:
+        scheme, _, value = authorization.partition(" ")
+        if scheme.lower() == "bearer" and value:
+            token = value.strip()
+    if token:
+        admin_sessions.pop(token, None)
+    return {"message": "Admin logout successful", "email": admin_session.get("email")}
+
 @app.post("/register")
 async def register(request: RegisterRequest):
-    if request.email not in pending_codes or pending_codes[request.email] != request.code:
+    normalized_email = normalize_email(request.email)
+    if normalized_email not in pending_codes or pending_codes[normalized_email] != request.code:
         raise HTTPException(status_code=400, detail="Invalid code.")
 
     conn = sqlite3.connect("users.db")
@@ -961,7 +1078,7 @@ async def register(request: RegisterRequest):
             )
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (request.username, request.email, request.password, created_at, 1, ""),
+            (request.username, normalized_email, request.password, created_at, 1, ""),
         )
         user_id = cursor.lastrowid
         log_player_activity(
@@ -969,7 +1086,7 @@ async def register(request: RegisterRequest):
             user_id,
             "account_registered",
             "Player account created.",
-            {"username": request.username, "email": request.email},
+            {"username": request.username, "email": normalized_email},
         )
         conn.commit()
     except sqlite3.IntegrityError:
@@ -977,7 +1094,7 @@ async def register(request: RegisterRequest):
     finally:
         conn.close()
 
-    pending_codes.pop(request.email, None)
+    pending_codes.pop(normalized_email, None)
     return {"message": "User registered successfully."}
 
 @app.post("/login")
@@ -988,12 +1105,13 @@ async def login(request: LoginRequest):
     cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", 
                    (request.username, request.password))
     user = cursor.fetchone()
-    conn.close()
 
     if not user:
+        conn.close()
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if user["is_banned"]:
+        conn.close()
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
             detail={
@@ -1002,7 +1120,16 @@ async def login(request: LoginRequest):
             }
         )
 
-    # In a real app, return a token. For now, we return user info.
+    # Track activity on login
+    log_player_activity(
+        cursor,
+        user["id"],
+        "login",
+        "Player logged into the game.",
+    )
+    conn.commit()
+    conn.close()
+
     return {"message": "Login successful", "user_id": user["id"], "username": user["username"]}
 
 # --- NEW: Get User Info for Theme/Streak Logic ---
@@ -1894,25 +2021,29 @@ async def get_admin_stats():
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
     today = date.today().isoformat()
+    five_minutes_ago = (datetime.now() - timedelta(minutes=5)).isoformat(timespec="seconds")
 
     total_users = cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     banned_users = cursor.execute("SELECT COUNT(*) FROM users WHERE is_banned = 1").fetchone()[0]
-    pending_reports = cursor.execute("SELECT COUNT(*) FROM reports WHERE status = 'Pending'").fetchone()[0]
     pending_appeals = cursor.execute("SELECT COUNT(*) FROM appeals WHERE status = 'Pending'").fetchone()[0]
     open_tickets = cursor.execute("SELECT COUNT(*) FROM support_tickets WHERE status = 'Open'").fetchone()[0]
     new_users_today = cursor.execute(
         "SELECT COUNT(*) FROM users WHERE created_at IS NOT NULL AND created_at LIKE ?",
         (f"{today}%",),
     ).fetchone()[0]
+    online_users = cursor.execute(
+        "SELECT COUNT(*) FROM users WHERE last_active_at IS NOT NULL AND last_active_at >= ?",
+        (five_minutes_ago,),
+    ).fetchone()[0]
 
     conn.close()
     return {
         "total_users": total_users,
         "banned_users": banned_users,
-        "pending_reports": pending_reports,
         "pending_appeals": pending_appeals,
         "open_tickets": open_tickets,
         "new_users_today": new_users_today,
+        "online_users": online_users,
     }
 
 @app.get("/admin/users", dependencies=[Depends(verify_admin)])
@@ -1920,8 +2051,9 @@ async def get_admin_users(search: str = ""):
     conn = sqlite3.connect("users.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    five_minutes_ago = (datetime.now() - timedelta(minutes=5)).isoformat(timespec="seconds")
     
-    query = """
+    query = f"""
         SELECT
             u.id,
             u.username,
@@ -1933,6 +2065,8 @@ async def get_admin_users(search: str = ""):
             u.banked_points,
             u.lifetime_points,
             u.created_at,
+            u.last_active_at,
+            (u.last_active_at IS NOT NULL AND u.last_active_at >= ?) AS is_online,
             (
                 SELECT pal.created_at
                 FROM player_activity_logs pal
@@ -1942,11 +2076,11 @@ async def get_admin_users(search: str = ""):
             ) AS latest_activity_at
         FROM users u
     """
-    params = []
+    params = [five_minutes_ago]
     
     if search:
         query += " WHERE username LIKE ? OR email LIKE ?"
-        params = [f"%{search}%", f"%{search}%"]
+        params.extend([f"%{search}%", f"%{search}%"])
     
     query += " ORDER BY id DESC"
     
