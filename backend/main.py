@@ -553,6 +553,10 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+class LoginWithCodeRequest(BaseModel):
+    email: str
+    code: str
+
 class LevelCompletionRequest(BaseModel):
     level: int
     difficulty: str
@@ -850,6 +854,43 @@ async def login(request: LoginRequest):
         )
 
     # In a real app, return a token. For now, we return user info.
+    return {"message": "Login successful", "user_id": user["id"], "username": user["username"]}
+
+@app.post("/login-with-code")
+async def login_with_code(request: LoginWithCodeRequest):
+    email = normalize_email(request.email)
+    if email not in pending_codes or pending_codes[email] != request.code:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+
+    conn = sqlite3.connect("users.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    user = cursor.execute("SELECT id, username, is_banned, ban_reason FROM users WHERE email = ?", (email,)).fetchone()
+
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="No account found with this Gmail.")
+
+    if user["is_banned"]:
+        conn.close()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "message": "Your account has been suspended.",
+                "reason": user["ban_reason"]
+            }
+        )
+
+    log_player_activity(
+        cursor,
+        user["id"],
+        "login",
+        "Player logged in via Gmail code.",
+    )
+    conn.commit()
+    conn.close()
+    pending_codes.pop(email, None)
+
     return {"message": "Login successful", "user_id": user["id"], "username": user["username"]}
 
 # --- NEW: Get User Info for Theme/Streak Logic ---
