@@ -84,7 +84,7 @@ function truncate(value, max = 120) {
 }
 
 function getAssetUrl(rawPath) {
-    if (!rawPath) return null;
+    if (!rawPath || typeof rawPath !== 'string') return null;
     let path = rawPath;
     if (path.startsWith('asset:assets/')) {
         path = path.replace('asset:assets/', '');
@@ -95,7 +95,7 @@ function getAssetUrl(rawPath) {
 }
 
 function stripAssetPrefix(value) {
-    if (!value) return '';
+    if (!value || typeof value !== 'string') return '';
     return value
         .replace(/^asset:assets\//, '')
         .replace(/^assets\//, '')
@@ -113,13 +113,13 @@ function prettifySegment(value) {
 }
 
 function findCaseInsensitiveMatch(source, key) {
-    if (!key) return null;
+    if (!key || typeof key !== 'string') return null;
     const normalized = key.trim().toLowerCase();
     return Object.entries(source).find(([candidate]) => candidate.toLowerCase() === normalized)?.[1] ?? null;
 }
 
 function formatThemeName(theme) {
-    if (!theme) return 'Default Theme';
+    if (!theme || typeof theme !== 'string') return 'Default Theme';
     const namedTheme = findCaseInsensitiveMatch(THEME_NAME_MAP, theme);
     if (namedTheme) return namedTheme;
     if (theme.startsWith('#')) return `Theme ${theme.toUpperCase()}`;
@@ -131,7 +131,7 @@ function formatThemeName(theme) {
 }
 
 function formatAudioName(assetPath, type = 'generic') {
-    if (!assetPath) return 'Not equipped';
+    if (!assetPath || typeof assetPath !== 'string') return 'Not equipped';
     const source = type === 'tap' ? TAP_SOUND_NAME_MAP : type === 'music' ? MUSIC_NAME_MAP : null;
     const namedAudio = source ? findCaseInsensitiveMatch(source, assetPath) : null;
     if (namedAudio) return namedAudio;
@@ -143,7 +143,7 @@ function formatAudioName(assetPath, type = 'generic') {
 }
 
 function formatAudioCategory(assetPath) {
-    if (!assetPath) return '';
+    if (!assetPath || typeof assetPath !== 'string') return '';
 
     const cleanPath = stripAssetPrefix(assetPath);
     const parts = cleanPath.split('/').filter(Boolean);
@@ -153,7 +153,7 @@ function formatAudioCategory(assetPath) {
 
 function formatInventoryMeta(item, kind) {
     if (kind === 'theme') {
-        return item?.startsWith('#') ? 'Solid color background' : 'Custom background asset';
+        return (typeof item === 'string' && item.startsWith('#')) ? 'Solid color background' : 'Custom background asset';
     }
     return formatAudioCategory(item);
 }
@@ -223,38 +223,41 @@ function ThemeHoverPreview({ theme }) {
 }
 
 function InventoryList({ items, kind, emptyLabel = 'None yet' }) {
-    if (!items?.length) {
+    if (!Array.isArray(items) || items.length === 0) {
         return <div className="empty-state inline">{emptyLabel}</div>;
     }
 
     return (
         <div className="inventory-list">
-            {items.map((item) => (
-                <div className="inventory-item" key={`${kind}-${item}`}>
-                    <div className="eq-head">
-                        <span className="eq-icon" aria-hidden="true">
-                            {kind === 'theme' ? 'TH' : kind === 'tap' ? 'FX' : 'BG'}
-                        </span>
-                        <div className="eq-copy">
-                            <span className="eq-label">
-                                {kind === 'theme' ? 'Theme' : kind === 'tap' ? 'Tap Sound' : 'Background Music'}
+            {items.map((item, idx) => {
+                if (!item) return null;
+                return (
+                    <div className="inventory-item" key={`${kind}-${item}-${idx}`}>
+                        <div className="eq-head">
+                            <span className="eq-icon" aria-hidden="true">
+                                {kind === 'theme' ? 'TH' : kind === 'tap' ? 'FX' : 'BG'}
                             </span>
-                            {kind === 'theme' ? (
-                                <ThemeHoverPreview theme={item} />
-                            ) : (
-                                <strong className="eq-val">{formatAudioName(item, kind)}</strong>
+                            <div className="eq-copy">
+                                <span className="eq-label">
+                                    {kind === 'theme' ? 'Theme' : kind === 'tap' ? 'Tap Sound' : 'Background Music'}
+                                </span>
+                                {kind === 'theme' ? (
+                                    <ThemeHoverPreview theme={item} />
+                                ) : (
+                                    <strong className="eq-val">{formatAudioName(item, kind)}</strong>
+                                )}
+                                <small className="eq-meta">{formatInventoryMeta(item, kind)}</small>
+                            </div>
+                            {kind !== 'theme' && typeof item === 'string' && (
+                                <AudioPreviewButton
+                                    assetPath={item}
+                                    label={kind === 'tap' ? 'Tap Sound' : 'Background Music'}
+                                />
                             )}
-                            <small className="eq-meta">{formatInventoryMeta(item, kind)}</small>
                         </div>
-                        {kind !== 'theme' && (
-                            <AudioPreviewButton
-                                assetPath={item}
-                                label={kind === 'tap' ? 'Tap Sound' : 'Background Music'}
-                            />
-                        )}
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }
@@ -499,6 +502,38 @@ function SectionCard({ title, subtitle, children, actions, collapsible, defaultE
 }
 
 function OverviewTab({ overview, onSelectUser }) {
+    const [activitySearch, setActivitySearch] = useState('');
+    const [playerSearch, setPlayerSearch] = useState('');
+
+    const filteredActivity = useMemo(() => {
+        const activities = overview?.recent_activity;
+        if (!Array.isArray(activities)) return [];
+        if (!activitySearch.trim()) return activities;
+        const query = activitySearch.toLowerCase();
+        return activities.filter(
+            (a) =>
+                a && (
+                    (String(a.username || '')).toLowerCase().includes(query) ||
+                    (String(a.event_label || '')).toLowerCase().includes(query) ||
+                    (String(a.summary || '')).toLowerCase().includes(query)
+                )
+        );
+    }, [overview?.recent_activity, activitySearch]);
+
+    const filteredTopPlayers = useMemo(() => {
+        const players = overview?.top_players;
+        if (!Array.isArray(players)) return [];
+        if (!playerSearch.trim()) return players;
+        const query = playerSearch.toLowerCase();
+        return players.filter(
+            (p) =>
+                p && (
+                    (String(p.username || '')).toLowerCase().includes(query) ||
+                    (String(p.email || '')).toLowerCase().includes(query)
+                )
+        );
+    }, [overview?.top_players, playerSearch]);
+
     if (!overview) {
         return <div className="loading">Loading overview...</div>;
     }
@@ -506,8 +541,17 @@ function OverviewTab({ overview, onSelectUser }) {
     return (
         <div className="overview-grid">
             <SectionCard title="Recent Activity" subtitle="Latest tracked player actions from the live game.">
-                <div className="stack-list">
-                    {overview.recent_activity?.length ? overview.recent_activity.map((activity) => (
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <input
+                        type="text"
+                        placeholder="Search players, actions, or summaries..."
+                        value={activitySearch}
+                        onChange={(e) => setActivitySearch(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px' }}
+                    />
+                </div>
+                <div className="stack-list overview-scroll-container">
+                    {filteredActivity.length ? filteredActivity.map((activity) => (
                         <button
                             type="button"
                             key={activity.id}
@@ -521,13 +565,22 @@ function OverviewTab({ overview, onSelectUser }) {
                             <p>{activity.summary}</p>
                             <small>{formatDate(activity.created_at)}</small>
                         </button>
-                    )) : <div className="empty-state">No player activity has been logged yet.</div>}
+                    )) : <div className="empty-state">No matching player activity found.</div>}
                 </div>
             </SectionCard>
 
             <SectionCard title="Top Players" subtitle="Current leaderboard snapshot from game data.">
-                <div className="stack-list compact">
-                    {overview.top_players?.map((player) => (
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <input
+                        type="text"
+                        placeholder="Search top players..."
+                        value={playerSearch}
+                        onChange={(e) => setPlayerSearch(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px' }}
+                    />
+                </div>
+                <div className="stack-list compact overview-scroll-container">
+                    {filteredTopPlayers.length ? filteredTopPlayers.map((player) => (
                         <button
                             type="button"
                             key={player.id}
@@ -542,7 +595,7 @@ function OverviewTab({ overview, onSelectUser }) {
                                 Lifetime: {formatNumber(player.lifetime_points)} | Banked: {formatNumber(player.banked_points)} | Highest Level: {formatNumber(player.highest_level)}
                             </p>
                         </button>
-                    ))}
+                    )) : <div className="empty-state">No matching players found.</div>}
                 </div>
             </SectionCard>
 
@@ -584,25 +637,28 @@ function DataTable({ columns, rows, emptyMessage, onRowClick, selectedId }) {
                     </tr>
                 </thead>
                 <tbody>
-                    {!rows.length ? (
+                    {!Array.isArray(rows) || !rows.length ? (
                         <tr>
                             <td colSpan={columns.length}>
                                 <div className="empty-state">{emptyMessage}</div>
                             </td>
                         </tr>
-                    ) : rows.map((row, rowIndex) => (
-                        <tr 
-                            key={row.id ?? rowIndex} 
-                            onClick={() => onRowClick?.(row.id)}
-                            className={`${onRowClick ? 'clickable-row' : ''} ${selectedId === row.id ? 'selected-row' : ''}`}
-                        >
-                            {columns.map((column) => (
-                                <td key={column.key}>
-                                    {column.render ? column.render(row) : row[column.key]}
-                                </td>
-                            ))}
-                        </tr>
-                    ))}
+                    ) : rows.map((row, rowIndex) => {
+                        if (!row) return null;
+                        return (
+                            <tr 
+                                key={row.id ?? rowIndex} 
+                                onClick={() => onRowClick?.(row.id)}
+                                className={`${onRowClick ? 'clickable-row' : ''} ${selectedId === row.id ? 'selected-row' : ''}`}
+                            >
+                                {columns.map((column) => (
+                                    <td key={column.key}>
+                                        {column.render ? column.render(row) : row[column.key]}
+                                    </td>
+                                ))}
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
         </div>
@@ -941,10 +997,59 @@ function SupportTicketsTab({ adminToken, onMutate, onSelectUser, filterStatus = 
     );
 }
 
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error("Dashboard Error:", error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="alert alert-error" style={{ margin: '20px', padding: '20px' }}>
+                    <h3>Something went wrong.</h3>
+                    <p>{this.state.error?.toString()}</p>
+                    <button 
+                        className="btn-primary" 
+                        style={{ marginTop: '12px' }}
+                        onClick={() => window.location.reload()}
+                    >
+                        Reload Page
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshComplete }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [activitySearch, setActivitySearch] = useState('');
+
+    const filteredActivity = useMemo(() => {
+        const activities = data?.recent_activity;
+        if (!Array.isArray(activities)) return [];
+        if (!activitySearch.trim()) return activities;
+        const query = activitySearch.toLowerCase();
+        return activities.filter(
+            (a) =>
+                a && (
+                    (String(a.event_label || '')).toLowerCase().includes(query) ||
+                    (String(a.summary || '')).toLowerCase().includes(query)
+                )
+        );
+    }, [data?.recent_activity, activitySearch]);
 
     const fetchDetails = async () => {
         if (!selectedUserId) {
@@ -961,6 +1066,7 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
             setError('');
             onRefreshComplete?.();
         } catch (err) {
+            console.error("Fetch Details Error:", err);
             setError('Failed to fetch player details');
         } finally {
             setLoading(false);
@@ -968,6 +1074,7 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
     };
 
     useEffect(() => {
+        setActivitySearch(''); // Reset search when switching users
         fetchDetails();
     }, [adminToken, selectedUserId, refreshNonce]);
 
@@ -987,14 +1094,6 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
         );
     }
 
-    if (error && !data) {
-        return (
-            <SectionCard title="Player Inspector">
-                <div className="alert alert-error">{error}</div>
-            </SectionCard>
-        );
-    }
-
     const user = data?.user;
     const achievements = user?.achievements || [];
 
@@ -1003,12 +1102,14 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
 
     return (
         <div className="detail-stack">
-            {error && <div className="alert alert-error">{error}</div>}
+            {(error || (!loading && !user)) && (
+                <div className="alert alert-error">{error || 'Player not found or data missing.'}</div>
+            )}
 
             <SectionCard
                 title={user ? `${user.username} Overview` : `User ${selectedUserId}`}
                 subtitle="Current stored player state from the game backend."
-                actions={<button type="button" className="btn-secondary" onClick={fetchDetails}>Refresh</button>}
+                actions={<button type="button" className="btn-secondary" onClick={fetchDetails} disabled={loading}>Refresh</button>}
             >
                 {user ? (
                     <div className="detail-grid">
@@ -1020,7 +1121,7 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
                                 {isOnline && <small style={{ color: '#4CAF50' }}>Online Now</small>}
                             </div>
                         </div>
-                        <div className="metric-card"><span>Email</span><strong>{user.email}</strong></div>
+                        <div className="metric-card"><span>Email</span><strong>{user.email || '-'}</strong></div>
                         <div className="metric-card"><span>Created</span><strong>{formatDate(user.created_at)}</strong></div>
                         <div className="metric-card"><span>Last Active</span><strong>{formatDate(user.last_active_at)}</strong></div>
                         <div className="metric-card"><span>Total Score</span><strong>{formatNumber(user.total_score)}</strong></div>
@@ -1031,12 +1132,12 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
                         <div className="metric-card"><span>Streak</span><strong>{formatNumber(user.streak)}</strong></div>
                         <div className="metric-card"><span>Colorblind</span><strong>{user.colorblind_mode ? 'On' : 'Off'}</strong></div>
                     </div>
-                ) : <div className="empty-state">No player data.</div>}
+                ) : <div className="empty-state">No player data available.</div>}
             </SectionCard>
 
             <SectionCard title="Inventory & Cosmetics" subtitle="Equipped and unlocked items." collapsible defaultExpanded={false}>
                 {user ? (
-                    <div className="inventory-v3">
+                    <div className="inventory-v3 inventory-scroll-container">
                         <div className="equipped-panel">
                             <h4>Current Gear</h4>
                             <div className="eq-stack">
@@ -1124,8 +1225,17 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
             </SectionCard>
 
             <SectionCard title="Recent Activity Timeline" subtitle="Newest tracked player actions." collapsible defaultExpanded={true}>
-                <div className="stack-list">
-                    {data?.recent_activity?.length ? data.recent_activity.map((activity) => (
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <input
+                        type="text"
+                        placeholder="Search actions or summaries..."
+                        value={activitySearch}
+                        onChange={(e) => setActivitySearch(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px' }}
+                    />
+                </div>
+                <div className="stack-list timeline-scroll-container">
+                    {filteredActivity.length ? filteredActivity.map((activity) => (
                         <div className="list-card static" key={activity.id}>
                             <div className="list-title">
                                 <strong>{activity.event_label}</strong>
@@ -1133,7 +1243,7 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
                             </div>
                             <p>{activity.summary}</p>
                         </div>
-                    )) : <div className="empty-state">No tracked activity yet.</div>}
+                    )) : <div className="empty-state">No matching tracked activity found.</div>}
                 </div>
             </SectionCard>
         </div>
@@ -1324,7 +1434,9 @@ export default function App() {
     return (
         <div className="container">
             {adminToken ? (
-                <Dashboard adminToken={adminToken} adminEmail={adminEmail} onLogout={handleLogout} />
+                <ErrorBoundary>
+                    <Dashboard adminToken={adminToken} adminEmail={adminEmail} onLogout={handleLogout} />
+                </ErrorBoundary>
             ) : (
                 <AuthComponent onAuth={handleAuth} />
             )}
