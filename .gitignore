@@ -46,3 +46,7 @@ app.*.map.json
 
 .worktrees/
 
+# Local database and CLI settings
+users.db
+.gemini/
+
