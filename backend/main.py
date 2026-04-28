@@ -981,7 +981,7 @@ def calculate_level_score(request: LevelCompletionRequest) -> dict:
     perfect_bonus = 5 if request.perfect_run else 0
     total_earned = base_score + fast_bonus + perfect_bonus
     return {
-        "base_score": base_score,
+        "base_points": base_score,
         "fast_bonus": fast_bonus,
         "perfect_bonus": perfect_bonus,
         "total_earned": total_earned,
