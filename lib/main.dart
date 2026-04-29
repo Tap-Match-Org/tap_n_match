@@ -57,30 +57,34 @@ class TapAndMatchApp extends StatelessWidget {
             WidgetsBinding.instance.hitTestInView(hitTestResult, event.position, view.viewId);
             
             bool hitInteractive = false;
-            for (final entry in hitTestResult.path) {
-              final target = entry.target;
+            final path = hitTestResult.path.toList();
 
+            // 1. Explicit check for known Material interactive RenderObjects
+            for (final entry in path) {
+              final target = entry.target;
               final typeName = target.runtimeType.toString();
               
-              // RenderInk captures most Material-based buttons and list items
-              // RenderEditable captures TextFields
-              // RenderPointerListener is used by GestureDetector
-              // We include RenderParagraph only if it's likely part of an interactive element
               if (typeName.contains('RenderInk') || 
                   typeName.contains('RenderEditable') ||
+                  typeName.contains('RenderToggleable') ||
+                  typeName.contains('RenderSlider') ||
                   typeName.contains('RenderListTile') ||
                   typeName.contains('RenderDropdownMenu')) {
                 hitInteractive = true;
                 break;
               }
+            }
 
-              // Special handling for RenderPointerListener to avoid background clicks
-              // We check if it's a descendant of something that shouldn't be silent
-              if (target is RenderPointerListener) {
-                if (target.onPointerDown != null) {
-                   // This is still a bit broad but usually catches specific UI elements
-                   // if they are NOT the top-level page listener.
-                   // However, for now, RenderInk covers most cases.
+            // 2. If no explicit Material widget found, check for local PointerListeners
+            // We ignore listeners that are too high in the tree (Navigator, Scaffold, etc.)
+            // by skipping the last 8 entries of the hit path.
+            if (!hitInteractive && path.length > 8) {
+              final localLimit = path.length - 8;
+              for (int i = 0; i < localLimit; i++) {
+                final target = path[i].target;
+                if (target is RenderPointerListener && target.onPointerDown != null) {
+                  hitInteractive = true;
+                  break;
                 }
               }
             }

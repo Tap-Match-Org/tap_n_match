@@ -11,6 +11,7 @@ class SoundManager {
 
   final AudioPlayer _tapPlayer = AudioPlayer();
   final AudioPlayer _bgMusicPlayer = AudioPlayer();
+  final AudioPlayer _oneOffPlayer = AudioPlayer();
   bool _isBgMusicPlaying = false;
   
   // Settings
@@ -19,17 +20,36 @@ class SoundManager {
   double _tapVolume = 1.0;
   double _bgVolume = 0.5;
   bool _colorblindMode = false;
+  bool _isInitialized = false;
 
   bool get tapSoundEnabled => _tapSoundEnabled;
   bool get bgMusicEnabled => _bgMusicEnabled;
   double get tapVolume => _tapVolume;
   double get bgVolume => _bgVolume;
   bool get colorblindMode => _colorblindMode;
+  bool get isInitialized => _isInitialized;
   String get selectedTapSound => _selectedTapSound;
 
   // Preload or cache settings could be added here
   String _selectedTapSound = 'audio/tap_sounds/default_tapSounds.mp3';
   String _selectedBgMusic = 'audio/background_music/stal_default.mp3';
+
+  Future<void> syncFromMap(Map<String, dynamic> data, {bool force = false}) async {
+    if (_isInitialized && !force) return;
+
+    _tapSoundEnabled = data['tap_sound_enabled'] == true || data['tap_sound_enabled'] == 1 || data['tap_sound_enabled'] == null;
+    _bgMusicEnabled = data['bg_music_enabled'] == true || data['bg_music_enabled'] == 1 || data['bg_music_enabled'] == null;
+    _tapVolume = (data['tap_volume'] as num?)?.toDouble() ?? 1.0;
+    _bgVolume = (data['bg_volume'] as num?)?.toDouble() ?? 0.5;
+    _colorblindMode = data['colorblind_mode'] == true || data['colorblind_mode'] == 1;
+    
+    await updateSettings(
+      tapSound: data['selected_tap_sound'],
+      bgMusic: data['selected_bg_music'],
+    );
+    
+    _isInitialized = true;
+  }
 
   Future<void> playTap() async {
     if (!_tapSoundEnabled) return;
@@ -169,9 +189,22 @@ class SoundManager {
     }
   }
 
+  Future<void> playGameOverSound() async {
+    if (!_tapSoundEnabled) return;
+    try {
+      await stopBgMusic();
+      await _oneOffPlayer.stop();
+      await _oneOffPlayer.setVolume(_tapVolume);
+      await _oneOffPlayer.play(AssetSource('audio/game_over_sound/harry_potter_game_over.mp3'));
+    } catch (e) {
+      debugPrint('Error playing game over sound: $e');
+    }
+  }
+
   void dispose() {
     _tapPlayer.dispose();
     _bgMusicPlayer.dispose();
+    _oneOffPlayer.dispose();
     _isBgMusicPlaying = false;
   }
 }

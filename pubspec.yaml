@@ -40,6 +40,7 @@ flutter:
     - assets/audio/background_music/harvestMoon.mp3
     - assets/audio/background_music/minecraft_bgMusic.mp3
     - assets/audio/background_music/snowfall_bgMusic.mp3
+    - assets/audio/game_over_sound/
     - assets/background/minecraft_bgColor.jpg
     - assets/background/harvest_moon_background.jpeg
     - assets/background/genshin_background.jpeg
