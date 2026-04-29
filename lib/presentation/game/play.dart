@@ -10,6 +10,8 @@ import 'package:tap_n_match/core/theme_background.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
 import 'package:tap_n_match/core/tutorial_progress.dart';
 
+import 'package:tap_n_match/core/api_config.dart';
+
 class GamePage extends StatefulWidget {
   final http.Client? httpClient;
   const GamePage({super.key, this.httpClient});
@@ -134,7 +136,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
 
   Future<void> _loadUserData() async {
     try {
-      final response = await _client.get(Uri.parse('http://localhost:8000/users/$userId'));
+      final response = await _client.get(ApiConfig.getUri('/users/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _hasPendingPlayTutorial = hasPendingTutorial(
@@ -493,11 +495,13 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
                                 await soundManager.setColorblindMode(val);
                                 await soundManager.persistToServer(userId);
                                 setDialogState(() {});
+                                setState(() {}); // Update the game grid immediately
                               },
                               activeThumbColor: Colors.blue,
                             ),
                           ],
-                        ),                  ],
+                        ),
+                  ],
                 ),
               ),
             ),
