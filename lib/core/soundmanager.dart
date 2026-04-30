@@ -166,6 +166,7 @@ class SoundManager {
     _tapVolume = 1.0;
     _bgVolume = 0.5;
     _colorblindMode = false;
+    _isInitialized = false;
     if (wasPlaying) {
       await playBgMusic();
     }

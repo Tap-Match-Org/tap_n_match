@@ -88,6 +88,11 @@ STANDARD_TUTORIAL_IDS = (
 )
 TUTORIAL_IDS = (WELCOME_TUTORIAL_ID, *STANDARD_TUTORIAL_IDS)
 
+def get_db_connection():
+    conn = sqlite3.connect("users.db", timeout=10.0)
+    conn.row_factory = sqlite3.Row
+    return conn
+
 ACTIVITY_EVENT_LABELS = {
     "account_registered": "Account Registered",
     "level_completed": "Level Completed",
@@ -453,7 +458,8 @@ ACHIEVEMENT_CATALOG = [
 
 # --- Updated Database Init ---
 def init_db():
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
+    conn.execute("PRAGMA journal_mode=WAL;")
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -578,6 +584,7 @@ def init_db():
         ("bg_music_enabled", "INTEGER DEFAULT 1"),
         ("tap_volume", "REAL DEFAULT 1.0"),
         ("bg_volume", "REAL DEFAULT 0.5"),
+        ("colorblind_mode", "INTEGER DEFAULT 0"),
         ("is_banned", "INTEGER DEFAULT 0"),
         ("ban_reason", "TEXT"),
         ("claimed_rewards", "TEXT DEFAULT ''"),
@@ -1062,7 +1069,7 @@ async def register(request: RegisterRequest):
     if normalized_email not in pending_codes or pending_codes[normalized_email] != request.code:
         raise HTTPException(status_code=400, detail="Invalid code.")
 
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     created_at = current_timestamp()
     try:
@@ -1099,8 +1106,7 @@ async def register(request: RegisterRequest):
 
 @app.post("/login")
 async def login(request: LoginRequest):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", 
                    (request.username, request.password))
@@ -1136,7 +1142,7 @@ async def login(request: LoginRequest):
 # --- NEW: Fix Database for Existing Users ---
 @app.get("/fix-database")
 async def fix_database():
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     # Fix existing users with problematic unlocked_themes
@@ -1153,7 +1159,7 @@ async def fix_database():
 @app.get("/fix1")
 async def fix1():
     import sqlite3
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT OR IGNORE INTO users (id, username, email, password, created_at) VALUES (1, 'demo', 'demo@demo.com', 'pass', '2023-01-01')")
     conn.commit()
@@ -1162,8 +1168,7 @@ async def fix1():
 
 @app.get("/users/{user_id}")
 async def get_user_info(user_id: int):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     user = cursor.execute(
@@ -1195,8 +1200,7 @@ async def complete_tutorial(user_id: int, tutorial_id: str):
     if normalized_tutorial_id not in TUTORIAL_IDS:
         raise HTTPException(status_code=400, detail="Unknown tutorial.")
 
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -1245,8 +1249,7 @@ async def complete_tutorial(user_id: int, tutorial_id: str):
 
 @app.get("/public-users/{user_id}")
 async def get_public_user_info(user_id: int):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     user = cursor.execute(
@@ -1272,114 +1275,112 @@ async def get_public_user_info(user_id: int):
 
 @app.put("/complete-level/{user_id}")
 async def complete_level(user_id: int, request: LevelCompletionRequest):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
+    try:
+        user = cursor.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    user = cursor.execute(
-        """
-        SELECT *
-        FROM users
-        WHERE id = ?
-        """,
-        (user_id,),
-    ).fetchone()
-    if not user:
-        conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
+        score_breakdown = calculate_level_score(request)
+        current_total_score = user["total_score"] or 0
+        current_highest_score = user["highest_score"] or 0
+        current_highest_level = user["highest_level"] or 0
+        current_levels_cleared = user["levels_cleared"] or 0
+        current_fast_finishes = user["fast_finishes"] or 0
+        current_perfect_finishes = user["perfect_finishes"] or 0
+        current_boxes_tapped = user["boxes_tapped"] or 0
+        current_extreme_clears = user["extreme_clears"] or 0
 
-    score_breakdown = calculate_level_score(request)
-    current_total_score = user["total_score"] or 0
-    current_highest_score = user["highest_score"] or 0
-    current_highest_level = user["highest_level"] or 0
-    current_levels_cleared = user["levels_cleared"] or 0
-    current_fast_finishes = user["fast_finishes"] or 0
-    current_perfect_finishes = user["perfect_finishes"] or 0
-    current_boxes_tapped = user["boxes_tapped"] or 0
-    current_extreme_clears = user["extreme_clears"] or 0
+        new_total_score = current_total_score + score_breakdown["total_earned"]
+        new_banked_points = (user["banked_points"] or 0) + score_breakdown["total_earned"]
+        new_lifetime_points = (user["lifetime_points"] or 0) + score_breakdown["total_earned"]
+        new_run_score = max(request.run_score_before_level, 0) + score_breakdown["total_earned"]
+        new_highest_score = max(current_highest_score, new_run_score)
+        new_highest_level = max(current_highest_level, request.level)
+        new_levels_cleared = current_levels_cleared + 1
+        new_fast_finishes = current_fast_finishes + (1 if score_breakdown["fast_bonus"] > 0 else 0)
+        new_perfect_finishes = current_perfect_finishes + (1 if score_breakdown["perfect_bonus"] > 0 else 0)
+        new_boxes_tapped = current_boxes_tapped + max(request.boxes_tapped, 0)
+        new_extreme_clears = current_extreme_clears + (1 if request.difficulty.strip().lower() == "extreme" else 0)
 
-    new_total_score = current_total_score + score_breakdown["total_earned"]
-    new_banked_points = (user["banked_points"] or 0) + score_breakdown["total_earned"]
-    new_lifetime_points = (user["lifetime_points"] or 0) + score_breakdown["total_earned"]
-    new_run_score = max(request.run_score_before_level, 0) + score_breakdown["total_earned"]
-    new_highest_score = max(current_highest_score, new_run_score)
-    new_highest_level = max(current_highest_level, request.level)
-    new_levels_cleared = current_levels_cleared + 1
-    new_fast_finishes = current_fast_finishes + (1 if score_breakdown["fast_bonus"] > 0 else 0)
-    new_perfect_finishes = current_perfect_finishes + (1 if score_breakdown["perfect_bonus"] > 0 else 0)
-    new_boxes_tapped = current_boxes_tapped + max(request.boxes_tapped, 0)
-    new_extreme_clears = current_extreme_clears + (1 if request.difficulty.strip().lower() == "extreme" else 0)
-
-    cursor.execute(
-        """
-        UPDATE users
-        SET total_score = ?, highest_score = ?, highest_level = ?, levels_cleared = ?,
-            fast_finishes = ?, perfect_finishes = ?, boxes_tapped = ?, extreme_clears = ?,
-            banked_points = ?, lifetime_points = ?
-        WHERE id = ?
-        """,
-        (
-            new_total_score,
-            new_highest_score,
-            new_highest_level,
-            new_levels_cleared,
-            new_fast_finishes,
-            new_perfect_finishes,
-            new_boxes_tapped,
-            new_extreme_clears,
-            new_banked_points,
-            new_lifetime_points,
+        cursor.execute(
+            """
+            UPDATE users
+            SET total_score = ?, highest_score = ?, highest_level = ?, levels_cleared = ?,
+                fast_finishes = ?, perfect_finishes = ?, boxes_tapped = ?, extreme_clears = ?,
+                banked_points = ?, lifetime_points = ?
+            WHERE id = ?
+            """,
+            (
+                new_total_score,
+                new_highest_score,
+                new_highest_level,
+                new_levels_cleared,
+                new_fast_finishes,
+                new_perfect_finishes,
+                new_boxes_tapped,
+                new_extreme_clears,
+                new_banked_points,
+                new_lifetime_points,
+                user_id,
+            ),
+        )
+        log_player_activity(
+            cursor,
             user_id,
-        ),
-    )
-    log_player_activity(
-        cursor,
-        user_id,
-        "level_completed",
-        f"Cleared level {request.level} on {request.difficulty.strip().lower()} for {score_breakdown['total_earned']} points.",
-        {
-            "level": request.level,
-            "difficulty": request.difficulty.strip().lower(),
-            "seconds_left": request.seconds_left,
-            "used_done_button": request.used_done_button,
-            "perfect_run": request.perfect_run,
-            "boxes_tapped": max(request.boxes_tapped, 0),
-            "earned_points": score_breakdown["total_earned"],
-            "base_points": score_breakdown["base_points"],
-            "fast_bonus": score_breakdown["fast_bonus"],
-            "perfect_bonus": score_breakdown["perfect_bonus"],
-        },
-    )
-    conn.commit()
+            "level_completed",
+            f"Cleared level {request.level} on {request.difficulty.strip().lower()} for {score_breakdown['total_earned']} points.",
+            {
+                "level": request.level,
+                "difficulty": request.difficulty.strip().lower(),
+                "seconds_left": request.seconds_left,
+                "used_done_button": request.used_done_button,
+                "perfect_run": request.perfect_run,
+                "boxes_tapped": max(request.boxes_tapped, 0),
+                "earned_points": score_breakdown["total_earned"],
+                "base_points": score_breakdown["base_points"],
+                "fast_bonus": score_breakdown["fast_bonus"],
+                "perfect_bonus": score_breakdown["perfect_bonus"],
+            },
+        )
+        conn.commit()
 
-    updated_user = cursor.execute(
-        """
-        SELECT *
-        FROM users
-        WHERE id = ?
-        """,
-        (user_id,),
-    ).fetchone()
-    conn.close()
+        updated_user = cursor.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE id = ?
+            """,
+            (user_id,),
+        ).fetchone()
 
-    return {
-        "status": "success",
-        "score_breakdown": score_breakdown,
-        "total_score": new_total_score,
-        "banked_points": new_banked_points,
-        "lifetime_points": new_lifetime_points,
-        "highest_score": new_highest_score,
-        "highest_level": new_highest_level,
-        "boxes_tapped": new_boxes_tapped,
-        "achievement_count": calculate_achievement_count(updated_user),
-        "claimable_reward_count": evaluate_achievements(updated_user)["claimable_reward_count"],
-    }
+        return {
+            "status": "success",
+            "score_breakdown": score_breakdown,
+            "total_score": new_total_score,
+            "banked_points": new_banked_points,
+            "lifetime_points": new_lifetime_points,
+            "highest_score": new_highest_score,
+            "highest_level": new_highest_level,
+            "boxes_tapped": new_boxes_tapped,
+            "achievement_count": calculate_achievement_count(updated_user),
+            "claimable_reward_count": evaluate_achievements(updated_user)["claimable_reward_count"],
+        }
+    finally:
+        conn.close()
 
 
 @app.get("/leaderboards")
 async def get_leaderboards():
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
     rows = cursor.execute(
         """
@@ -1413,58 +1414,53 @@ class BuyItemRequest(BaseModel):
 
 @app.post("/buy-item/{user_id}")
 async def buy_item(user_id: int, request: BuyItemRequest):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
-    
-    user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not user:
-        conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        current_banked = user["banked_points"] or 0
+        if current_banked < request.price:
+            raise HTTPException(status_code=400, detail="Insufficient points")
+            
+        # Add to inventory
+        inventory_col = {
+            "theme": "unlocked_themes",
+            "tap_sound": "unlocked_tap_sounds",
+            "bg_music": "unlocked_bg_music"
+        }.get(request.item_type)
         
-    current_banked = user["banked_points"] or 0
-    if current_banked < request.price:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Insufficient points")
+        if not inventory_col:
+            raise HTTPException(status_code=400, detail="Invalid item type")
+            
+        unlocked_items = split_csv(user[inventory_col])
+        if request.item_id in unlocked_items:
+            raise HTTPException(status_code=400, detail="Item already unlocked")
+            
+        unlocked_items.append(request.item_id)
+        new_inventory = join_csv(unlocked_items)
+        new_banked = current_banked - request.price
         
-    # Add to inventory
-    inventory_col = {
-        "theme": "unlocked_themes",
-        "tap_sound": "unlocked_tap_sounds",
-        "bg_music": "unlocked_bg_music"
-    }.get(request.item_type)
-    
-    if not inventory_col:
+        cursor.execute(f"UPDATE users SET {inventory_col} = ?, banked_points = ? WHERE id = ?", 
+                       (new_inventory, new_banked, user_id))
+        log_player_activity(
+            cursor,
+            user_id,
+            "shop_purchase",
+            f"Bought a {request.item_type.replace('_', ' ')} from the shop.",
+            {
+                "item_id": request.item_id,
+                "item_type": request.item_type,
+                "price": request.price,
+                "banked_points_after": new_banked,
+            },
+        )
+        conn.commit()
+        return {"status": "success", "banked_points": new_banked}
+    finally:
         conn.close()
-        raise HTTPException(status_code=400, detail="Invalid item type")
-        
-    unlocked_items = split_csv(user[inventory_col])
-    if request.item_id in unlocked_items:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Item already unlocked")
-        
-    unlocked_items.append(request.item_id)
-    new_inventory = join_csv(unlocked_items)
-    new_banked = current_banked - request.price
-    
-    cursor.execute(f"UPDATE users SET {inventory_col} = ?, banked_points = ? WHERE id = ?", 
-                   (new_inventory, new_banked, user_id))
-    log_player_activity(
-        cursor,
-        user_id,
-        "shop_purchase",
-        f"Bought a {request.item_type.replace('_', ' ')} from the shop.",
-        {
-            "item_id": request.item_id,
-            "item_type": request.item_type,
-            "price": request.price,
-            "banked_points_after": new_banked,
-        },
-    )
-    conn.commit()
-    conn.close()
-    
-    return {"status": "success", "banked_points": new_banked}
 
 
 @app.put("/update-username/{user_id}")
@@ -1473,8 +1469,7 @@ async def update_username(user_id: int, request: UsernameUpdateRequest):
     if not new_username:
         raise HTTPException(status_code=400, detail="Username cannot be empty.")
 
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     user = cursor.execute(
@@ -1536,7 +1531,7 @@ async def update_password(user_id: int, request: PasswordUpdateRequest):
     if not new_password:
         raise HTTPException(status_code=400, detail="Password cannot be empty.")
 
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     user = cursor.execute("SELECT id, email FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
@@ -1555,7 +1550,7 @@ async def update_email(user_id: int, request: EmailUpdateRequest):
     if not new_email:
         raise HTTPException(status_code=400, detail="Email cannot be empty.")
 
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     user = cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
@@ -1589,7 +1584,7 @@ async def update_profile_picture(user_id: int, request: ProfilePictureUpdateRequ
     if not profile_picture:
         raise HTTPException(status_code=400, detail="Profile picture cannot be empty.")
 
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     user = cursor.execute("SELECT id, profile_picture FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
@@ -1614,118 +1609,119 @@ async def update_profile_picture(user_id: int, request: ProfilePictureUpdateRequ
 
 @app.put("/update-user-settings/{user_id}")
 async def update_user_settings(user_id: int, request: UserSettingsUpdateRequest):
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
-    user = cursor.execute(
-        """
-        SELECT id, tap_sound_enabled, bg_music_enabled, tap_volume, bg_volume, colorblind_mode
-        FROM users WHERE id = ?
-        """,
-        (user_id,),
-    ).fetchone()
-    if not user:
-        conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        user = cursor.execute(
+            """
+            SELECT id, tap_sound_enabled, bg_music_enabled, tap_volume, bg_volume, colorblind_mode
+            FROM users WHERE id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    cursor.execute(
-        """
-        UPDATE users
-        SET tap_sound_enabled = ?,
-            bg_music_enabled = ?,
-            tap_volume = ?,
-            bg_volume = ?,
-            colorblind_mode = ?
-        WHERE id = ?
-        """,
-        (
-            1 if request.tap_sound_enabled else 0,
-            1 if request.bg_music_enabled else 0,
-            request.tap_volume,
-            request.bg_volume,
-            1 if request.colorblind_mode else 0,
+        cursor.execute(
+            """
+            UPDATE users
+            SET tap_sound_enabled = ?,
+                bg_music_enabled = ?,
+                tap_volume = ?,
+                bg_volume = ?,
+                colorblind_mode = ?
+            WHERE id = ?
+            """,
+            (
+                1 if request.tap_sound_enabled else 0,
+                1 if request.bg_music_enabled else 0,
+                request.tap_volume,
+                request.bg_volume,
+                1 if request.colorblind_mode else 0,
+                user_id,
+            ),
+        )
+        log_player_activity(
+            cursor,
             user_id,
-        ),
-    )
-    log_player_activity(
-        cursor,
-        user_id,
-        "settings_updated",
-        "Updated gameplay and accessibility settings.",
-        {
-            "before": {
-                "tap_sound_enabled": bool(user["tap_sound_enabled"]),
-                "bg_music_enabled": bool(user["bg_music_enabled"]),
-                "tap_volume": user["tap_volume"],
-                "bg_volume": user["bg_volume"],
-                "colorblind_mode": bool(user["colorblind_mode"]),
+            "settings_updated",
+            "Updated gameplay and accessibility settings.",
+            {
+                "before": {
+                    "tap_sound_enabled": bool(user["tap_sound_enabled"]),
+                    "bg_music_enabled": bool(user["bg_music_enabled"]),
+                    "tap_volume": user["tap_volume"],
+                    "bg_volume": user["bg_volume"],
+                    "colorblind_mode": bool(user["colorblind_mode"]),
+                },
+                "after": {
+                    "tap_sound_enabled": request.tap_sound_enabled,
+                    "bg_music_enabled": request.bg_music_enabled,
+                    "tap_volume": request.tap_volume,
+                    "bg_volume": request.bg_volume,
+                    "colorblind_mode": request.colorblind_mode,
+                },
             },
-            "after": {
-                "tap_sound_enabled": request.tap_sound_enabled,
-                "bg_music_enabled": request.bg_music_enabled,
-                "tap_volume": request.tap_volume,
-                "bg_volume": request.bg_volume,
-                "colorblind_mode": request.colorblind_mode,
-            },
-        },
-    )
-    conn.commit()
-    conn.close()
-    return {"status": "success"}
+        )
+        conn.commit()
+        return {"status": "success"}
+    finally:
+        conn.close()
 
 
 @app.post("/reset-account/{user_id}")
 async def reset_account(user_id: int):
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
-    user = cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not user:
-        conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        user = cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    cursor.execute(
-        """
-        UPDATE users
-        SET unlocked_themes = '',
-            selected_theme = ?,
-            streak = 0,
-            last_challenge_date = NULL,
-            daily_attempts = 0,
-            last_attempt_date = NULL,
-            total_score = 0,
-            highest_score = 0,
-            highest_level = 0,
-            levels_cleared = 0,
-            fast_finishes = 0,
-            perfect_finishes = 0,
-            boxes_tapped = 0,
-            completed_daily_challenges = 0,
-            extreme_clears = 0,
-            unlocked_tap_sounds = ?,
-            selected_tap_sound = ?,
-            unlocked_bg_music = ?,
-            selected_bg_music = ?,
-            claimed_rewards = '',
-            tutorial_enabled = 1,
-            completed_tutorials = ''
-        WHERE id = ?
-        """,
-        (DEFAULT_THEME, DEFAULT_TAP_SOUND, DEFAULT_TAP_SOUND, DEFAULT_BG_MUSIC, DEFAULT_BG_MUSIC, user_id),
-    )
-    log_player_activity(
-        cursor,
-        user_id,
-        "account_reset",
-        "Reset account progress and inventory to defaults.",
-        {},
-    )
-    conn.commit()
-    conn.close()
-    return {"status": "success", "message": "Account progress reset."}
+        cursor.execute(
+            """
+            UPDATE users
+            SET unlocked_themes = '',
+                selected_theme = ?,
+                streak = 0,
+                last_challenge_date = NULL,
+                daily_attempts = 0,
+                last_attempt_date = NULL,
+                total_score = 0,
+                highest_score = 0,
+                highest_level = 0,
+                levels_cleared = 0,
+                fast_finishes = 0,
+                perfect_finishes = 0,
+                boxes_tapped = 0,
+                completed_daily_challenges = 0,
+                extreme_clears = 0,
+                unlocked_tap_sounds = ?,
+                selected_tap_sound = ?,
+                unlocked_bg_music = ?,
+                selected_bg_music = ?,
+                claimed_rewards = '',
+                tutorial_enabled = 1,
+                completed_tutorials = ''
+            WHERE id = ?
+            """,
+            (DEFAULT_THEME, DEFAULT_TAP_SOUND, DEFAULT_TAP_SOUND, DEFAULT_BG_MUSIC, DEFAULT_BG_MUSIC, user_id),
+        )
+        log_player_activity(
+            cursor,
+            user_id,
+            "account_reset",
+            "Reset account progress and inventory to defaults.",
+            {},
+        )
+        conn.commit()
+        return {"status": "success", "message": "Account progress reset."}
+    finally:
+        conn.close()
 
 @app.put("/select-theme/{user_id}")
 async def select_theme(user_id: int, theme_color: str):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     user = cursor.execute("SELECT unlocked_themes, selected_theme FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -1754,8 +1750,7 @@ async def select_theme(user_id: int, theme_color: str):
 
 @app.put("/select-tap-sound/{user_id}")
 async def select_tap_sound(user_id: int, asset_path: str):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     user = cursor.execute("SELECT unlocked_tap_sounds, selected_tap_sound FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -1783,8 +1778,7 @@ async def select_tap_sound(user_id: int, asset_path: str):
 
 @app.put("/select-bg-music/{user_id}")
 async def select_bg_music(user_id: int, asset_path: str):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     user = cursor.execute("SELECT unlocked_bg_music, selected_bg_music FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -1812,8 +1806,7 @@ async def select_bg_music(user_id: int, asset_path: str):
 
 @app.get("/achievements/{user_id}")
 async def get_achievements(user_id: int):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
     user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
@@ -1826,8 +1819,7 @@ async def get_achievements(user_id: int):
 
 @app.post("/claim-achievement/{user_id}/{achievement_id}")
 async def claim_achievement(user_id: int, achievement_id: str):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
     user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
@@ -1906,98 +1898,93 @@ async def claim_achievement(user_id: int, achievement_id: str):
 
 @app.post("/record-attempt/{user_id}")
 async def record_attempt(user_id: int):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
-    
-    user = cursor.execute("SELECT daily_attempts, last_attempt_date FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not user:
-        conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        user = cursor.execute("SELECT daily_attempts, last_attempt_date FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    today = date.today().isoformat()
-    attempts = user['daily_attempts']
-    
-    if user['last_attempt_date'] != today:
-        attempts = 0
-    
-    if attempts >= 2:
-        conn.close()
-        return {"status": "limit_reached", "message": "You have already played twice today!"}
+        today = date.today().isoformat()
+        attempts = user['daily_attempts']
+        
+        if user['last_attempt_date'] != today:
+            attempts = 0
+        
+        if attempts >= 2:
+            return {"status": "limit_reached", "message": "You have already played twice today!"}
 
-    cursor.execute("""
-        UPDATE users 
-        SET daily_attempts = ?, last_attempt_date = ? 
-        WHERE id = ?
-    """, (attempts + 1, today, user_id))
-    
-    conn.commit()
-    conn.close()
-    return {"status": "success", "attempts": attempts + 1}
+        cursor.execute("""
+            UPDATE users 
+            SET daily_attempts = ?, last_attempt_date = ? 
+            WHERE id = ?
+        """, (attempts + 1, today, user_id))
+        
+        conn.commit()
+        return {"status": "success", "attempts": attempts + 1}
+    finally:
+        conn.close()
 
 # --- NEW: Daily Challenge Reward Logic ---
 @app.put("/complete-challenge/{user_id}")
 async def complete_challenge(user_id: int, reward_color: str):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
-    
-    user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not user:
-        conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    today = date.today().isoformat()
-    
-    # Check if reward already claimed today
-    if user['last_challenge_date'] == today:
-        conn.close()
-        return {"status": "already_played", "message": "Reward already claimed today!"}
+        today = date.today().isoformat()
+        
+        # Check if reward already claimed today
+        if user['last_challenge_date'] == today:
+            return {"status": "already_played", "message": "Reward already claimed today!"}
 
-    # Calculate Streak
-    current_streak = user['streak']
-    new_streak = current_streak + 1
-    
-    # Add new color to unlocked_themes list (comma separated)
-    theme_list = split_csv(user["unlocked_themes"])
-    if reward_color not in theme_list:
-        theme_list.append(reward_color)
+        # Calculate Streak
+        current_streak = user['streak']
+        new_streak = current_streak + 1
+        
+        # Add new color to unlocked_themes list (comma separated)
+        theme_list = split_csv(user["unlocked_themes"])
+        if reward_color not in theme_list:
+            theme_list.append(reward_color)
 
-    new_themes = join_csv(theme_list)
-    new_completed_daily_challenges = (user["completed_daily_challenges"] or 0) + 1
+        new_themes = join_csv(theme_list)
+        new_completed_daily_challenges = (user["completed_daily_challenges"] or 0) + 1
 
-    cursor.execute("""
-        UPDATE users 
-        SET streak = ?, last_challenge_date = ?, unlocked_themes = ?, completed_daily_challenges = ?
-        WHERE id = ?
-    """, (new_streak, today, new_themes, new_completed_daily_challenges, user_id))
-    log_player_activity(
-        cursor,
-        user_id,
-        "daily_challenge_completed",
-        "Completed the daily challenge and earned a theme reward.",
-        {
-            "reward_color": reward_color,
-            "new_streak": new_streak,
+        cursor.execute("""
+            UPDATE users 
+            SET streak = ?, last_challenge_date = ?, unlocked_themes = ?, completed_daily_challenges = ?
+            WHERE id = ?
+        """, (new_streak, today, new_themes, new_completed_daily_challenges, user_id))
+        log_player_activity(
+            cursor,
+            user_id,
+            "daily_challenge_completed",
+            "Completed the daily challenge and earned a theme reward.",
+            {
+                "reward_color": reward_color,
+                "new_streak": new_streak,
+                "completed_daily_challenges": new_completed_daily_challenges,
+            },
+        )
+        
+        conn.commit()
+        
+        return {
+            "status": "success", 
+            "new_streak": new_streak, 
+            "unlocked_color": reward_color,
             "completed_daily_challenges": new_completed_daily_challenges,
-        },
-    )
-    
-    conn.commit()
-    conn.close()
-    
-    return {
-        "status": "success", 
-        "new_streak": new_streak, 
-        "unlocked_color": reward_color,
-        "completed_daily_challenges": new_completed_daily_challenges,
-    }
+        }
+    finally:
+        conn.close()
 
 
 @app.put("/mark-reward-seen/{user_id}/{reward_id}")
 async def mark_reward_seen(user_id: int, reward_id: str):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     user = cursor.execute("SELECT seen_rewards FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -2018,7 +2005,7 @@ async def mark_reward_seen(user_id: int, reward_id: str):
 
 @app.get("/admin/stats", dependencies=[Depends(verify_admin)])
 async def get_admin_stats():
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     today = date.today().isoformat()
     five_minutes_ago = (datetime.now() - timedelta(minutes=5)).isoformat(timespec="seconds")
@@ -2048,8 +2035,7 @@ async def get_admin_stats():
 
 @app.get("/admin/users", dependencies=[Depends(verify_admin)])
 async def get_admin_users(search: str = ""):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
     five_minutes_ago = (datetime.now() - timedelta(minutes=5)).isoformat(timespec="seconds")
     
@@ -2092,8 +2078,7 @@ async def get_admin_users(search: str = ""):
 
 @app.get("/admin/overview", dependencies=[Depends(verify_admin)])
 async def get_admin_overview():
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     stats = await get_admin_stats()
@@ -2168,8 +2153,7 @@ async def get_admin_overview():
 
 @app.get("/admin/users/{user_id}/details", dependencies=[Depends(verify_admin)])
 async def get_admin_user_details(user_id: int):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -2266,8 +2250,7 @@ class AdjustPointsRequest(BaseModel):
 
 @app.post("/admin/users/{user_id}/adjust-points", dependencies=[Depends(verify_admin)])
 async def adjust_points(user_id: int, request: AdjustPointsRequest):
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cursor = conn.cursor()
     user = cursor.execute(
         "SELECT banked_points, lifetime_points FROM users WHERE id = ?",
@@ -2297,7 +2280,7 @@ async def adjust_points(user_id: int, request: AdjustPointsRequest):
 
 @app.post("/admin/users/{user_id}/reset", dependencies=[Depends(verify_admin)])
 async def admin_reset_user(user_id: int):
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     # Check if user exists
@@ -2331,7 +2314,7 @@ class BanRequest(BaseModel):
 
 @app.put("/admin/users/{user_id}/ban", dependencies=[Depends(verify_admin)])
 async def ban_user(user_id: int, request: BanRequest):
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", (request.reason, user_id))
     log_player_activity(
@@ -2347,7 +2330,7 @@ async def ban_user(user_id: int, request: BanRequest):
 
 @app.put("/admin/users/{user_id}/unban", dependencies=[Depends(verify_admin)])
 async def unban_user(user_id: int):
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET is_banned = 0, ban_reason = NULL WHERE id = ?", (user_id,))
     log_player_activity(
@@ -2367,7 +2350,7 @@ class AppealRequest(BaseModel):
 
 @app.post("/appeals")
 async def submit_appeal(request: AppealRequest):
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     created_at = current_timestamp()
     cursor.execute(
@@ -2389,7 +2372,7 @@ async def submit_appeal(request: AppealRequest):
 
 @app.get("/admin/appeals", dependencies=[Depends(verify_admin)])
 async def get_appeals():
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     appeals = cursor.execute(
         "SELECT id, user_id, appeal_text, status, timestamp FROM appeals ORDER BY timestamp DESC"
@@ -2402,7 +2385,7 @@ async def get_appeals():
 
 @app.put("/admin/appeals/{appeal_id}", dependencies=[Depends(verify_admin)])
 async def update_appeal_status(appeal_id: int, status: str):
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE appeals SET status = ? WHERE id = ?", (status, appeal_id))
     conn.commit()
@@ -2416,7 +2399,7 @@ class ReportRequest(BaseModel):
 
 @app.post("/reports")
 async def submit_report(request: ReportRequest):
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     created_at = current_timestamp()
     cursor.execute(
@@ -2438,7 +2421,7 @@ async def submit_report(request: ReportRequest):
 
 @app.get("/admin/reports", dependencies=[Depends(verify_admin)])
 async def get_reports():
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     reports = cursor.execute(
         "SELECT id, reporter_id, reported_id, reason, timestamp, status FROM reports ORDER BY timestamp DESC"
@@ -2451,7 +2434,7 @@ async def get_reports():
 
 @app.put("/admin/reports/{report_id}", dependencies=[Depends(verify_admin)])
 async def update_report_status(report_id: int, status: str):
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE reports SET status = ? WHERE id = ?", (status, report_id))
     conn.commit()
@@ -2465,7 +2448,7 @@ class SupportTicketRequest(BaseModel):
 
 @app.post("/support/tickets")
 async def submit_support_ticket(request: SupportTicketRequest):
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     created_at = current_timestamp()
     cursor.execute(
@@ -2487,7 +2470,7 @@ async def submit_support_ticket(request: SupportTicketRequest):
 
 @app.get("/admin/support/tickets", dependencies=[Depends(verify_admin)])
 async def get_support_tickets():
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     tickets = cursor.execute(
         "SELECT id, user_id, type, message, status, timestamp FROM support_tickets ORDER BY timestamp DESC"
@@ -2500,7 +2483,7 @@ async def get_support_tickets():
 
 @app.put("/admin/support/tickets/{ticket_id}", dependencies=[Depends(verify_admin)])
 async def update_support_ticket_status(ticket_id: int, status: str):
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE support_tickets SET status = ? WHERE id = ?", (status, ticket_id))
     conn.commit()

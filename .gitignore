@@ -50,3 +50,5 @@ app.*.map.json
 users.db
 .gemini/
 
+
+backend/users.db
