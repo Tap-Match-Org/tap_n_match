@@ -538,16 +538,207 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _showPasswordDialog() async {
-    await _showProfileEditDialog(
-      title: 'Change Password',
-      label: 'New Password',
-      helperText: 'Enter a new password for this account.',
-      initialValue: '',
-      keyboardType: TextInputType.visiblePassword,
-      obscureText: true,
-      submit: _submitPasswordChange,
+  Future<void> _showPasswordWizard() async {
+    int currentWizardStep = 1;
+    final oldPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    String? errorText;
+    bool isSaving = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setWizardState) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFFD9D9D9),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: Colors.black, width: 3),
+            ),
+            title: Text(
+              'Change Password',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold),
+            ),
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: 320,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Step $currentWizardStep of 3',
+                      style: GoogleFonts.pixelifySans(fontSize: 12, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 12),
+                    if (currentWizardStep == 1) ...[
+                      Text(
+                        'Enter your current password to verify your identity.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.pixelifySans(fontSize: 13),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: oldPasswordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Old Password',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ] else if (currentWizardStep == 2) ...[
+                      Text(
+                        'Enter your new password.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.pixelifySans(fontSize: 13),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: newPasswordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'New Password',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ] else ...[
+                      Text(
+                        'Re-type your new password to confirm.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.pixelifySans(fontSize: 13),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: confirmPasswordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Confirm Password',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                    if (errorText != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        errorText!,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.pixelifySans(
+                          fontSize: 12,
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: isSaving
+                    ? null
+                    : () async {
+                        soundManager.playTap();
+                        final oldP = oldPasswordController.text.trim();
+                        final newP = newPasswordController.text.trim();
+                        final confirmP = confirmPasswordController.text.trim();
+
+                        if (currentWizardStep == 1) {
+                          if (oldP.isEmpty) {
+                            setWizardState(() => errorText = 'Old password required.');
+                            return;
+                          }
+                          setWizardState(() {
+                            currentWizardStep = 2;
+                            errorText = null;
+                          });
+                        } else if (currentWizardStep == 2) {
+                          if (newP.isEmpty) {
+                            setWizardState(() => errorText = 'New password required.');
+                            return;
+                          }
+                          if (newP == oldP) {
+                            setWizardState(() => errorText = 'New password must be different.');
+                            return;
+                          }
+                          setWizardState(() {
+                            currentWizardStep = 3;
+                            errorText = null;
+                          });
+                        } else {
+                          if (confirmP != newP) {
+                            setWizardState(() => errorText = 'Passwords do not match.');
+                            return;
+                          }
+
+                          setWizardState(() {
+                            isSaving = true;
+                            errorText = null;
+                          });
+
+                          try {
+                            final response = await http.put(
+                              ApiConfig.getUri('/update-password/$userId'),
+                              headers: {'Content-Type': 'application/json'},
+                              body: jsonEncode({
+                                'old_password': oldP,
+                                'new_password': newP,
+                              }),
+                            );
+
+                            if (response.statusCode != 200) {
+                              final data = jsonDecode(response.body) as Map<String, dynamic>;
+                              throw Exception(data['detail'] ?? 'Failed to update password.');
+                            }
+
+                            if (!mounted) return;
+                            Navigator.pop(dialogCtx);
+                            _showSnack('Password updated successfully!');
+                          } catch (e) {
+                            if (!mounted) return;
+                            setWizardState(() {
+                              errorText = _extractErrorMessage(e);
+                              isSaving = false;
+                            });
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.black, width: 2),
+                ),
+                child: Text(
+                  isSaving
+                      ? 'Saving...'
+                      : (currentWizardStep < 3 ? 'Next' : 'Finish'),
+                  style: GoogleFonts.pixelifySans(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
+
+    oldPasswordController.dispose();
+    newPasswordController.dispose();
+    confirmPasswordController.dispose();
+  }
+
+  Future<void> _showPasswordDialog() async {
+    _showPasswordWizard();
   }
 
   Future<void> _showEmailDialog() async {
@@ -624,7 +815,7 @@ class _ProfilePageState extends State<ProfilePage> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) {
+        builder: (dialogCtx, setDialogState) {
           return AlertDialog(
             backgroundColor: const Color(0xFFD9D9D9),
             shape: RoundedRectangleBorder(
@@ -636,46 +827,48 @@ class _ProfilePageState extends State<ProfilePage> {
               textAlign: TextAlign.center,
               style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold),
             ),
-            content: SizedBox(
-              width: 320,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (helperText != null) ...[
-                    Text(
-                      helperText,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.pixelifySans(fontSize: 12),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  TextField(
-                    controller: controller,
-                    obscureText: obscureText,
-                    keyboardType: keyboardType,
-                    decoration: InputDecoration(
-                      labelText: label,
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                  if (errorText != null) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      errorText!,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.pixelifySans(
-                        fontSize: 12,
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: 320,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (helperText != null) ...[
+                      Text(
+                        helperText,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.pixelifySans(fontSize: 12),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    TextField(
+                      controller: controller,
+                      obscureText: obscureText,
+                      keyboardType: keyboardType,
+                      decoration: InputDecoration(
+                        labelText: label,
+                        border: const OutlineInputBorder(),
                       ),
                     ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        errorText!,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.pixelifySans(
+                          fontSize: 12,
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
             actions: [
               TextButton(
-                onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
                 child: Text(
                   'Cancel',
                   style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold),
@@ -686,24 +879,29 @@ class _ProfilePageState extends State<ProfilePage> {
                     ? null
                     : () async {
                         final value = controller.text.trim();
-                        final navigator = Navigator.of(ctx);
                         final messenger = ScaffoldMessenger.of(context);
                         if (value.isEmpty) {
-                          setDialogState(() {
-                            errorText = '$label cannot be empty.';
-                          });
+                          if (dialogCtx.mounted) {
+                            setDialogState(() {
+                              errorText = '$label cannot be empty.';
+                            });
+                          }
                           return;
                         }
 
-                        setDialogState(() {
-                          isSaving = true;
-                          errorText = null;
-                        });
+                        if (dialogCtx.mounted) {
+                          setDialogState(() {
+                            isSaving = true;
+                            errorText = null;
+                          });
+                        }
 
                         try {
                           final message = await submit(value);
                           if (!mounted) return;
-                          navigator.pop();
+                          if (dialogCtx.mounted) {
+                            Navigator.of(dialogCtx).pop();
+                          }
                           messenger.showSnackBar(
                             SnackBar(
                               content: Text(
@@ -716,10 +914,12 @@ class _ProfilePageState extends State<ProfilePage> {
                           );
                         } catch (e) {
                           if (!mounted) return;
-                          setDialogState(() {
-                            errorText = _extractErrorMessage(e);
-                            isSaving = false;
-                          });
+                          if (dialogCtx.mounted) {
+                            setDialogState(() {
+                              errorText = _extractErrorMessage(e);
+                              isSaving = false;
+                            });
+                          }
                         }
                       },
                 style: ElevatedButton.styleFrom(
@@ -763,20 +963,6 @@ class _ProfilePageState extends State<ProfilePage> {
       });
     }
     return 'Username updated.';
-  }
-
-  Future<String> _submitPasswordChange(String value) async {
-    final response = await http.put(
-      ApiConfig.getUri('/update-password/$userId'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'password': value}),
-    );
-
-    if (response.statusCode != 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      throw Exception(data['detail'] ?? 'Failed to update password.');
-    }
-    return 'Password updated.';
   }
 
   Future<String> _submitEmailChange(String value) async {

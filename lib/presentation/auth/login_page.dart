@@ -130,6 +130,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _showMsg(String msg, {required bool isError}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.pixelifySans(fontSize: 12)),

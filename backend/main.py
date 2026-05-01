@@ -665,7 +665,8 @@ class UsernameUpdateRequest(BaseModel):
 
 
 class PasswordUpdateRequest(BaseModel):
-    password: str
+    old_password: str
+    new_password: str
 
 
 class EmailUpdateRequest(BaseModel):
@@ -1565,18 +1566,25 @@ async def update_username(user_id: int, request: UsernameUpdateRequest):
 
 @app.put("/update-password/{user_id}")
 async def update_password(user_id: int, request: PasswordUpdateRequest):
-    new_password = request.password.strip()
-    if not new_password:
-        raise HTTPException(status_code=400, detail="Password cannot be empty.")
+    old_p = request.old_password.strip()
+    new_p = request.new_password.strip()
+    
+    if not old_p or not new_p:
+        raise HTTPException(status_code=400, detail="Passwords cannot be empty.")
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    user = cursor.execute("SELECT id, email FROM users WHERE id = ?", (user_id,)).fetchone()
+    user = cursor.execute("SELECT id, password FROM users WHERE id = ?", (user_id,)).fetchone()
+    
     if not user:
         conn.close()
         raise HTTPException(status_code=404, detail="User not found")
+        
+    if user["password"] != old_p:
+        conn.close()
+        raise HTTPException(status_code=401, detail="Old password is incorrect")
 
-    cursor.execute("UPDATE users SET password = ? WHERE id = ?", (new_password, user_id))
+    cursor.execute("UPDATE users SET password = ? WHERE id = ?", (new_p, user_id))
     conn.commit()
     conn.close()
     return {"status": "success"}
