@@ -492,7 +492,12 @@ class _ProfilePageState extends State<ProfilePage> {
     return Opacity(
       opacity: enabled ? 1 : 0.55,
       child: InkWell(
-        onTap: enabled ? onTap : null,
+        onTap: enabled
+            ? () {
+                soundManager.playTap();
+                onTap();
+              }
+            : null,
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -913,7 +918,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildBackButton() {
     return GestureDetector(
-      onTap: () => Navigator.of(context).pop(),
+      onTap: () {
+        soundManager.playTap();
+        Navigator.of(context).pop();
+      },
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
@@ -928,7 +936,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildMenuButton() {
     return GestureDetector(
-      onTap: _showEditMenu,
+      onTap: () {
+        soundManager.playTap();
+        _showEditMenu();
+      },
       child: Container(
         key: _menuButtonKey,
         padding: const EdgeInsets.all(10),

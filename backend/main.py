@@ -646,6 +646,10 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+class LoginCodeRequest(BaseModel):
+    email: str
+    code: str
+
 class LevelCompletionRequest(BaseModel):
     level: int
     difficulty: str
@@ -1103,6 +1107,40 @@ async def register(request: RegisterRequest):
 
     pending_codes.pop(normalized_email, None)
     return {"message": "User registered successfully."}
+
+@app.post("/login-code")
+async def login_code(request: LoginCodeRequest):
+    email = request.email.lower().strip()
+    code = request.code.strip()
+
+    if email not in pending_codes or pending_codes[email] != code:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    user = cursor.execute("SELECT id, username, is_banned, ban_reason FROM users WHERE email = ?", (email,)).fetchone()
+    
+    if not user:
+        conn.close()
+        raise HTTPException(status_code=404, detail="No account associated with this email")
+
+    if user["is_banned"]:
+        conn.close()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"message": "Account banned", "reason": user["ban_reason"]}
+        )
+
+    user_id = user["id"]
+    username = user["username"]
+    
+    # Update last active
+    cursor.execute("UPDATE users SET last_active_at = ? WHERE id = ?", (datetime.now().isoformat(timespec="seconds"), user_id))
+    conn.commit()
+    conn.close()
+
+    pending_codes.pop(email, None)
+    return {"user_id": user_id, "username": username}
 
 @app.post("/login")
 async def login(request: LoginRequest):

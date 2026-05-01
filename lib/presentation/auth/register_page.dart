@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:tap_n_match/application/register_user.dart';
+import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/repository/auth_repository.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -153,7 +154,10 @@ class _RegisterPageState extends State<RegisterPage> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       padding: const EdgeInsets.symmetric(vertical: 8),
                     ),
-                    onPressed: () => setState(() => _currentStep--),
+                    onPressed: () {
+                      soundManager.playTap();
+                      setState(() => _currentStep--);
+                    },
                     child: Text('BACK', style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 13)),
                   ),
                 ),
@@ -166,7 +170,10 @@ class _RegisterPageState extends State<RegisterPage> {
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
-                onPressed: onNext,
+                onPressed: () {
+                  soundManager.playTap();
+                  if (onNext != null) onNext();
+                },
                 child: Text(isLast ? 'FINISH' : 'NEXT', 
                   style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
               ),
@@ -232,7 +239,10 @@ class _RegisterPageState extends State<RegisterPage> {
                       if (_currentStep == 1) ...[
                         const SizedBox(height: 4),
                         TextButton(
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: () {
+                            soundManager.playTap();
+                            Navigator.pop(context);
+                          },
                           child: Text(
                             "Already have an account?",
                             style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 11),
@@ -294,7 +304,10 @@ class _RegisterPageState extends State<RegisterPage> {
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
-                onPressed: _sendCode,
+                onPressed: () {
+                  soundManager.playTap();
+                  _sendCode();
+                },
                 child: Text('SEND CODE', style: GoogleFonts.pixelifySans(color: Colors.white)),
               ),
             ),
@@ -368,7 +381,10 @@ class _RegisterPageState extends State<RegisterPage> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       padding: const EdgeInsets.symmetric(vertical: 8),
                     ),
-                    onPressed: () => setState(() => _currentStep = 3),
+                    onPressed: () {
+                      soundManager.playTap();
+                      setState(() => _currentStep = 3);
+                    },
                     child: Text('BACK', style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 13)),
                   ),
                 ),
@@ -381,7 +397,10 @@ class _RegisterPageState extends State<RegisterPage> {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     ),
-                    onPressed: _handleRegister,
+                    onPressed: () {
+                      soundManager.playTap();
+                      _handleRegister();
+                    },
                     child: Text('VERIFY & SIGN UP', 
                       style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
                   ),

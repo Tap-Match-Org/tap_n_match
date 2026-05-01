@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:tap_n_match/core/soundmanager.dart';
 
 enum TutorialCardPosition {
   topLeft,
@@ -215,7 +216,12 @@ class _GuidedTutorialOverlayState extends State<GuidedTutorialOverlay> {
                                 SizedBox(
                                   width: double.infinity,
                                   child: TextButton(
-                                    onPressed: widget.isSaving ? null : widget.onSkip,
+                                    onPressed: widget.isSaving
+                                        ? null
+                                        : () {
+                                            soundManager.playTap();
+                                            widget.onSkip();
+                                          },
                                     child: Text(
                                       widget.isSaving ? 'Saving...' : 'Skip tutorial',
                                       style: GoogleFonts.pixelifySans(
@@ -333,7 +339,12 @@ class _TutorialButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ElevatedButton(
-      onPressed: onTap,
+      onPressed: onTap != null
+          ? () {
+              soundManager.playTap();
+              onTap!();
+            }
+          : null,
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         foregroundColor: Colors.black,

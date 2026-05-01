@@ -202,6 +202,25 @@ class SoundManager {
     }
   }
 
+  Future<void> playCountdownSound() async {
+    if (!_tapSoundEnabled) return;
+    try {
+      await _oneOffPlayer.stop();
+      await _oneOffPlayer.setVolume(_tapVolume);
+      await _oneOffPlayer.play(AssetSource('countdown_sound/3, 2, 1 countdown.mp3'));
+    } catch (e) {
+      debugPrint('Error playing countdown sound: $e');
+    }
+  }
+
+  Future<void> stopOneOffSound() async {
+    try {
+      await _oneOffPlayer.stop();
+    } catch (e) {
+      debugPrint('Error stopping one-off sound: $e');
+    }
+  }
+
   void dispose() {
     _tapPlayer.dispose();
     _bgMusicPlayer.dispose();

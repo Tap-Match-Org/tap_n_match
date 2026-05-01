@@ -388,14 +388,16 @@ class _MainMenuPageState extends State<MainMenuPage>
                     ),
                   ),
                   Positioned(
-                    right: 10,
-                    top: 10,
-                    child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(Icons.close, color: Colors.black, size: 28),
-                    ),
+                  right: 10,
+                  top: 10,
+                  child: GestureDetector(
+                    onTap: () {
+                      soundManager.playTap();
+                      Navigator.pop(context);
+                    },
+                    child: const Icon(Icons.close, color: Colors.black, size: 28),
                   ),
-                ],
+                  ),                ],
               ),
             );
           },
@@ -523,6 +525,7 @@ class _MainMenuPageState extends State<MainMenuPage>
   }
 
   Future<void> _openSidebarRoute(String route) async {
+    soundManager.playTap();
     await Navigator.of(context).pushNamed(
       route,
       arguments: {'user_id': userId},
@@ -577,44 +580,41 @@ class _MainMenuPageState extends State<MainMenuPage>
                     itemCount: 9,
                     itemBuilder: (context, index) {
                       final color = _logoCellColor(index, progress, palette);
-                      return GestureDetector(
-                        onTap: () {},
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                color.withValues(alpha: 0.98),
-                                color.withValues(alpha: 0.72),
-                              ],
-                            ),
-                            border: Border.all(color: Colors.black, width: 2),
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: color.withValues(alpha: 0.45),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
+                      return Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              color.withValues(alpha: 0.98),
+                              color.withValues(alpha: 0.72),
                             ],
                           ),
-                          child: Stack(
-                            children: [
-                              Positioned(
-                                left: 4,
-                                top: 4,
-                                child: Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white.withValues(alpha: 0.38),
-                                  ),
+                          border: Border.all(color: Colors.black, width: 2),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: color.withValues(alpha: 0.45),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              left: 4,
+                              top: 4,
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withValues(alpha: 0.38),
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       );
                     },
@@ -1157,6 +1157,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                                   const SizedBox(height: 8),
                                   GestureDetector(
                                     onTap: () async {
+                                      soundManager.playTap();
                                       await Navigator.of(context).pushNamed(
                                         '/daily_challenge',
                                         arguments: {
@@ -1213,6 +1214,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                       themeColor: themeColor,
                       tutorialKey: _playButtonKey,
                       onTap: () async {
+                        soundManager.playTap();
                         await Navigator.of(context).pushNamed(
                           '/game',
                           arguments: {'user_id': userId},
@@ -1224,6 +1226,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                     _buildExitButton(
                       isLandscape: isLandscape,
                       onTap: () {
+                        soundManager.playTap();
                         if (Platform.isAndroid) {
                           SystemNavigator.pop();
                         } else if (Platform.isIOS) {
@@ -1241,13 +1244,16 @@ class _MainMenuPageState extends State<MainMenuPage>
               right: 20,
               bottom: 20,
               child: GestureDetector(
-                onTap: () => Navigator.of(context).pushNamed(
-                  '/support',
-                  arguments: {
-                    'user_id': userId,
-                    'selected_theme': selectedTheme,
-                  },
-                ),
+                onTap: () {
+                  soundManager.playTap();
+                  Navigator.of(context).pushNamed(
+                    '/support',
+                    arguments: {
+                      'user_id': userId,
+                      'selected_theme': selectedTheme,
+                    },
+                  );
+                },
                 child: Container(
                   width: 60,
                   height: 60,

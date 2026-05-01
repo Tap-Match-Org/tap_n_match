@@ -140,7 +140,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _hasPendingPlayTutorial = hasPendingTutorial(
-          Map<String, dynamic>.from(data as Map),
+          data,
           TutorialIds.play,
         );
         if (mounted) {
@@ -282,6 +282,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
   }
 
   void _startCountdown() {
+    soundManager.playCountdownSound();
     setState(() {
       _showCountdown = true;
       _countdownTime = 3;
@@ -329,6 +330,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     timer?.cancel();
     pauseShuffleTimer?.cancel();
     setState(() => isPaused = true);
+    soundManager.stopOneOffSound();
 
     // Anti-abuse: Shuffle target pattern every 2 seconds while paused
     pauseShuffleTimer = Timer.periodic(const Duration(seconds: 2), (t) {
@@ -381,7 +383,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
               }),
               _buildButton("Yes", () {
                 Navigator.pop(ctx);
-                Navigator.pop(context);
+                _handleGameOver(false);
               }),
             ],
           )
@@ -519,7 +521,10 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
       children: [
         IconButton(
           icon: Icon(icon, color: Colors.black, size: 32),
-          onPressed: onTap,
+          onPressed: () {
+            soundManager.playTap();
+            onTap();
+          },
         ),
         Text(label, style: GoogleFonts.pixelifySans(fontSize: 12)),
       ],
@@ -550,7 +555,10 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           divisions: 10,
           activeColor: Colors.green,
           inactiveColor: Colors.black26,
-          onChanged: onChanged,
+          onChanged: (val) {
+            soundManager.playTap();
+            onChanged(val);
+          },
         ),
       ],
     );
@@ -602,6 +610,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
   void _handleCellTap(int index, _DifficultyConfig config) {
     if (_isSubmittingLevel || isPaused || isGameOver) return;
 
+    soundManager.playTap();
     setState(() {
       _tapCountThisLevel++;
       userPattern[index] = (userPattern[index] + 1) % config.colors;
@@ -785,7 +794,6 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     if (mounted) {
       setState(() {
         isGameOver = true;
-        currentScore = 0;
       });
     }
 
@@ -886,6 +894,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
                           iconColor: const Color(0xFF8AE234),
                           onTap: () {
                             Navigator.pop(ctx);
+                            soundManager.stopOneOffSound();
                             soundManager.playBgMusic(); // Restart music on retry
                             setState(() {
                               currentLevel = 1;
@@ -929,7 +938,12 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
                           iconColor: const Color(0xFF8AE234),
                           onTap: () {
                             Navigator.pop(ctx);
+                            soundManager.stopOneOffSound();
                             soundManager.playBgMusic(); // Restart music for the menu
+                            setState(() {
+                              currentLevel = 1;
+                              currentScore = 0;
+                            });
                             Navigator.pop(context);
                           },
                         ),
@@ -983,7 +997,10 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     required VoidCallback onTap,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        soundManager.playTap();
+        onTap();
+      },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1335,7 +1352,10 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
 
   Widget _buildButton(String text, VoidCallback onTap) {
     return ElevatedButton(
-      onPressed: onTap,
+      onPressed: () {
+        soundManager.playTap();
+        onTap();
+      },
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white,
         side: const BorderSide(color: Colors.black, width: 2),

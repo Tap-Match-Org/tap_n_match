@@ -351,6 +351,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
   }
 Future<void> _selectTheme(String themeKey) async {
   final trimmedKey = themeKey.trim();
+  soundManager.playTap();
   _markAsSeen(trimmedKey);
   try {
     final response = await http.put(
@@ -369,6 +370,7 @@ Future<void> _selectTheme(String themeKey) async {
 
   Future<void> _selectSound(String assetPath) async {
     final trimmedPath = assetPath.trim();
+    soundManager.playTap();
     _markAsSeen(trimmedPath);
     try {
       final response = await http.put(
@@ -377,7 +379,6 @@ Future<void> _selectTheme(String themeKey) async {
 
       if (response.statusCode == 200) {
         await soundManager.setSelectedTapSound(trimmedPath);
-        await soundManager.playTap();
         if (!mounted) return;
         setState(() => selectedSound = trimmedPath);
         _showTopSnackBar("Tap sound changed to ${soundNames[trimmedPath] ?? 'a new sound'}!");
@@ -389,6 +390,7 @@ Future<void> _selectTheme(String themeKey) async {
 
   Future<void> _selectMusic(String assetPath) async {
     final trimmedPath = assetPath.trim();
+    soundManager.playTap();
     _markAsSeen(trimmedPath);
     try {
       final response = await http.put(
@@ -489,7 +491,17 @@ Future<void> _selectTheme(String themeKey) async {
         decoration: buildThemeDecoration(selectedTheme),
         child: Stack(
           children: [
-            Positioned(left: 20, top: 20, child: GestureDetector(onTap: () => Navigator.pop(context), child: _buildIconButton(Icons.arrow_back_ios_new))),
+            Positioned(
+              left: 20,
+              top: 20,
+              child: GestureDetector(
+                onTap: () {
+                  soundManager.playTap();
+                  Navigator.pop(context);
+                },
+                child: _buildIconButton(Icons.arrow_back_ios_new),
+              ),
+            ),
             Align(
               alignment: Alignment.center,
               child: Padding(

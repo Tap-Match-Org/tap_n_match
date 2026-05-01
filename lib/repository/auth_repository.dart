@@ -40,6 +40,39 @@ class AuthRepository {
     }
   }
 
+  Future<AuthResponse> loginWithCode(String email, String code) async {
+    try {
+      final response = await _client.post(
+        ApiConfig.getUri('/login-code'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'code': code,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return AuthResponse.success(
+          userId: (data['user_id'] as num).toInt(),
+          username: data['username'] as String,
+        );
+      } else if (response.statusCode == 403) {
+        final detail = data['detail'];
+        String? reason;
+        if (detail is Map) {
+          reason = detail['reason'];
+        }
+        return AuthResponse.banned(banReason: reason);
+      } else {
+        return AuthResponse.error(data['detail'] ?? 'Invalid or expired code');
+      }
+    } catch (e) {
+      return AuthResponse.error("Can't connect to server. Is FastAPI running?");
+    }
+  }
+
   Future<bool> sendVerificationCode(String email) async {
     try {
       final response = await _client.post(

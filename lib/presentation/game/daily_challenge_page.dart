@@ -647,6 +647,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
               return GestureDetector(
                 onTap: isInteractive
                     ? () {
+                        soundManager.playTap();
                         setState(() {
                           userGrid[index] = (userGrid[index] + 1) % 5; // Cycle through 0-4
                         });
@@ -678,7 +679,10 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
 
   Widget _buildButton(String text, VoidCallback onTap) {
     return ElevatedButton(
-      onPressed: onTap,
+      onPressed: () {
+        soundManager.playTap();
+        onTap();
+      },
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white,
         side: const BorderSide(color: Colors.black, width: 2),

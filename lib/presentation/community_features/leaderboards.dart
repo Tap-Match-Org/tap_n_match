@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
 import 'package:tap_n_match/core/tutorial_progress.dart';
@@ -203,12 +204,14 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
         decoration: buildThemeDecoration(selectedTheme),
         child: Stack(
           children: [
-            // BACK BUTTON
             Positioned(
               left: 20,
               top: 20,
               child: GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
+                onTap: () {
+                  soundManager.playTap();
+                  Navigator.of(context).pop();
+                },
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -381,6 +384,7 @@ class _LeaderboardsPageState extends State<LeaderboardsPage> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
+        soundManager.playTap();
         Navigator.of(context).pushNamed(
           '/profile',
           arguments: {

@@ -283,7 +283,10 @@ class _ShopPageState extends State<ShopPage> {
                       child: Row(
                         children: [
                           GestureDetector(
-                            onTap: () => Navigator.pop(context),
+                            onTap: () {
+                              soundManager.playTap();
+                              Navigator.pop(context);
+                            },
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
@@ -410,6 +413,7 @@ class _ShopPageState extends State<ShopPage> {
     bool isActive = activeTab == index;
     return GestureDetector(
       onTap: () {
+        soundManager.playTap();
         setState(() => activeTab = index);
       },
       child: Padding(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:tap_n_match/core/api_config.dart';
+import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
 import 'package:tap_n_match/core/tutorial_progress.dart';
@@ -192,7 +193,10 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
               left: 20,
               top: 20,
               child: GestureDetector(
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  soundManager.playTap();
+                  Navigator.pop(context);
+                },
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -288,7 +292,10 @@ class _SupportMenuPageState extends State<SupportMenuPage> {
   }) {
     return GestureDetector(
       key: key,
-      onTap: () => _openSupport(context, route),
+      onTap: () {
+        soundManager.playTap();
+        _openSupport(context, route);
+      },
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
