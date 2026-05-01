@@ -2020,7 +2020,7 @@ async def complete_challenge(user_id: int, reward_color: str):
         conn.close()
 
 
-@app.put("/mark-reward-seen/{user_id}/{reward_id}")
+@app.put("/mark-reward-seen/{user_id}")
 async def mark_reward_seen(user_id: int, reward_id: str):
     conn = get_db_connection()
     cursor = conn.cursor()
