@@ -17,7 +17,9 @@ void main() {
 
   setUp(() {
     mockClient = MockClient();
-    // Default user data response
+  });
+
+  testWidgets('Game grid displays symbols when Colorblind Mode is enabled', (WidgetTester tester) async {
     when(() => mockClient.get(any())).thenAnswer((_) async => http.Response(
           jsonEncode({
             'banked_points': 1000,
@@ -27,12 +29,11 @@ void main() {
             'unlocked_tap_sounds': [],
             'unlocked_bg_music': [],
             'seen_rewards': [],
+            'colorblind_mode': true,
           }),
           200,
         ));
-  });
 
-  testWidgets('Game grid displays symbols when Colorblind Mode is enabled', (WidgetTester tester) async {
     // Enable colorblind mode in soundManager
     await soundManager.setColorblindMode(true);
 
@@ -75,6 +76,20 @@ void main() {
   });
 
   testWidgets('Game grid does NOT display symbols when Colorblind Mode is disabled', (WidgetTester tester) async {
+    when(() => mockClient.get(any())).thenAnswer((_) async => http.Response(
+          jsonEncode({
+            'banked_points': 1000,
+            'selected_theme': '#A9A9A9',
+            'highest_score': 5000,
+            'unlocked_themes': [],
+            'unlocked_tap_sounds': [],
+            'unlocked_bg_music': [],
+            'seen_rewards': [],
+            'colorblind_mode': false,
+          }),
+          200,
+        ));
+
     await soundManager.setColorblindMode(false);
 
     await tester.pumpWidget(MaterialApp(

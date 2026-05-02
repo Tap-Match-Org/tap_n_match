@@ -141,7 +141,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
         4, 1, 2, 3, 4,
         1, 2, 3, 4, 1,
       ],
-      "tapSound": "audio/tap_sounds/harvest_moon _tapSound.mp3",
+      "tapSound": "audio/tap_sounds/harvest_moon_tapSound.mp3",
       "background": "asset:assets/background/harvest_moon_background.jpeg",
       "reward": "asset:assets/background/harvest_moon_background.jpeg",
     },

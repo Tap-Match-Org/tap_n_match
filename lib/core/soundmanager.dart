@@ -7,7 +7,9 @@ import 'package:tap_n_match/core/api_config.dart';
 class SoundManager {
   static final SoundManager _instance = SoundManager._internal();
   factory SoundManager() => _instance;
-  SoundManager._internal();
+  SoundManager._internal() {
+    _initAudioContext();
+  }
 
   final AudioPlayer _tapPlayer = AudioPlayer();
   final AudioPlayer _bgMusicPlayer = AudioPlayer();
@@ -34,6 +36,25 @@ class SoundManager {
   String _selectedTapSound = 'audio/tap_sounds/default_tapSounds.mp3';
   String _selectedBgMusic = 'audio/background_music/stal_default.mp3';
 
+  void _initAudioContext() {
+    AudioPlayer.global.setAudioContext(AudioContext(
+      android: AudioContextAndroid(
+        isSpeakerphoneOn: false,
+        stayAwake: true,
+        contentType: AndroidContentType.music,
+        usageType: AndroidUsageType.media,
+        audioFocus: AndroidAudioFocus.gain,
+      ),
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.playAndRecord,
+        options: {
+          AVAudioSessionOptions.mixWithOthers,
+          AVAudioSessionOptions.defaultToSpeaker,
+        },
+      ),
+    ));
+  }
+
   Future<void> syncFromMap(Map<String, dynamic> data, {bool force = false}) async {
     if (_isInitialized && !force) return;
 
@@ -54,13 +75,11 @@ class SoundManager {
   Future<void> playTap() async {
     if (!_tapSoundEnabled) return;
     try {
-      // For rapid taps, we stop the current sound immediately before playing again
-      // to avoid the "interrupted by call to pause" error.
-      await _tapPlayer.stop();
+      // Use setSource instead of play(AssetSource) to reuse the player more efficiently
+      await _tapPlayer.setSource(AssetSource(_selectedTapSound));
       await _tapPlayer.setVolume(_tapVolume);
-      await _tapPlayer.play(AssetSource(_selectedTapSound), mode: PlayerMode.lowLatency);
+      await _tapPlayer.resume();
     } catch (e) {
-      // We ignore the AbortError/Interrupted error as it's expected during rapid taps
       if (!e.toString().contains('AbortError')) {
         debugPrint('Error playing tap sound: $e');
       }
@@ -70,26 +89,38 @@ class SoundManager {
   Future<void> playBgMusic() async {
     if (!_bgMusicEnabled) return;
     if (_isBgMusicPlaying) return;
+    
     _isBgMusicPlaying = true;
     try {
-      if (!_bgMusicEnabled) {
-        _isBgMusicPlaying = false;
-        return;
-      }
       await _bgMusicPlayer.setVolume(_bgVolume);
-      if (!_bgMusicEnabled) {
-        _isBgMusicPlaying = false;
-        return;
-      }
       await _bgMusicPlayer.setReleaseMode(ReleaseMode.loop);
-      if (!_bgMusicEnabled) {
+      
+      final assetPath = _selectedBgMusic;
+      // Use a shorter timeout or fire-and-forget for the initial play
+      // to prevent splash screen hanging.
+      _bgMusicPlayer.play(AssetSource(assetPath)).catchError((e) {
+        debugPrint('Error in fire-and-forget play: $e');
         _isBgMusicPlaying = false;
-        return;
-      }
-      await _bgMusicPlayer.play(AssetSource(_selectedBgMusic));
+        return null;
+      });
+      
+      // Verification check: some devices need a small delay or retry
+      Future.delayed(const Duration(seconds: 2), () async {
+        if (_isBgMusicPlaying && _bgMusicEnabled) {
+          try {
+            final state = _bgMusicPlayer.state;
+            if (state != PlayerState.playing) {
+              debugPrint('Music player state is $state, retrying play...');
+              await _bgMusicPlayer.play(AssetSource(assetPath));
+            }
+          } catch (e) {
+             debugPrint('Retry play failed: $e');
+          }
+        }
+      });
     } catch (e) {
       _isBgMusicPlaying = false;
-      debugPrint('Error playing background music: $e');
+      debugPrint('Error setting up background music: $e');
     }
   }
 
@@ -121,6 +152,8 @@ class SoundManager {
   }
 
   Future<void> setSelectedBgMusic(String assetPath) async {
+    if (_selectedBgMusic == assetPath) return;
+    
     final wasPlaying = _isBgMusicPlaying;
     _selectedBgMusic = assetPath;
     if (wasPlaying && _bgMusicEnabled) {
@@ -150,8 +183,8 @@ class SoundManager {
   }
 
   Future<void> stopBgMusic() async {
-    await _bgMusicPlayer.stop();
     _isBgMusicPlaying = false;
+    await _bgMusicPlayer.stop();
   }
 
   Future<void> resetToDefault() async {
@@ -183,6 +216,8 @@ class SoundManager {
           'tap_volume': _tapVolume,
           'bg_volume': _bgVolume,
           'colorblind_mode': _colorblindMode,
+          'selected_tap_sound': _selectedTapSound,
+          'selected_bg_music': _selectedBgMusic,
         }),
       );
     } catch (e) {

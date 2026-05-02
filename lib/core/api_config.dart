@@ -4,13 +4,10 @@ class ApiConfig {
   static String get baseUrl {
     if (kIsWeb) return 'http://localhost:8000';
     
-    // For Android emulators, 10.0.2.2 is the host machine.
-    // For iOS simulators or Windows/macOS/Linux desktop, localhost works.
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8000';
-    }
-    
-    return 'http://localhost:8000';
+    // 192.168.1.2 is your PC's local IP address.
+    // This allows your physical mobile device to connect to the backend
+    // as long as both are on the same Wi-Fi network.
+    return 'http://192.168.1.2:8000';
   }
 
   static Uri getUri(String path) {
