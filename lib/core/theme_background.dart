@@ -36,7 +36,7 @@ BoxDecoration buildThemeDecoration(
       image: DecorationImage(
         image: AssetImage(assetPath),
         fit: BoxFit.cover,
-        colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.1), BlendMode.darken),
+        colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.1), BlendMode.darken),
       ),
     );
   }
@@ -47,16 +47,16 @@ BoxDecoration buildThemeDecoration(
           center: Alignment.center,
           radius: radius,
           colors: [
-            themeColor.withValues(alpha: opacityStart),
-            themeColor.withValues(alpha: opacityEnd),
+            themeColor.withOpacity(opacityStart),
+            themeColor.withOpacity(opacityEnd),
           ],
         )
       : LinearGradient(
           begin: begin,
           end: end,
           colors: [
-            themeColor.withValues(alpha: opacityStart),
-            themeColor.withValues(alpha: opacityEnd),
+            themeColor.withOpacity(opacityStart),
+            themeColor.withOpacity(opacityEnd),
           ],
         );
 

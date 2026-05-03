@@ -313,7 +313,7 @@ class _ShopPageState extends State<ShopPage> {
                             key: _pointsDisplayKey,
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.9),
+                              color: Colors.white.withOpacity(0.9),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: Colors.black, width: 1.5),
                             ),

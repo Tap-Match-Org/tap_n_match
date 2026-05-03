@@ -586,15 +586,15 @@ class _MainMenuPageState extends State<MainMenuPage>
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              color.withValues(alpha: 0.98),
-                              color.withValues(alpha: 0.72),
+                              color.withOpacity(0.98),
+                              color.withOpacity(0.72),
                             ],
                           ),
                           border: Border.all(color: Colors.black, width: 2),
                           borderRadius: BorderRadius.circular(10),
                           boxShadow: [
                             BoxShadow(
-                              color: color.withValues(alpha: 0.45),
+                              color: color.withOpacity(0.45),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -610,7 +610,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                                 height: 10,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: Colors.white.withValues(alpha: 0.38),
+                                  color: Colors.white.withOpacity(0.38),
                                 ),
                               ),
                             ),
@@ -663,12 +663,12 @@ class _MainMenuPageState extends State<MainMenuPage>
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFCA016).withValues(alpha: 0.24),
+                    color: const Color(0xFFFCA016).withOpacity(0.24),
                     blurRadius: 12,
                     offset: const Offset(0, 6),
                   ),
                   BoxShadow(
-                    color: themeColor.withValues(alpha: 0.16),
+                    color: themeColor.withOpacity(0.16),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
@@ -696,11 +696,11 @@ class _MainMenuPageState extends State<MainMenuPage>
                             height: 40,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white.withValues(alpha: 0.32),
+                              color: Colors.white.withOpacity(0.32),
                               border: Border.all(color: Colors.black, width: 1.8),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.white.withValues(alpha: 0.45),
+                                  color: Colors.white.withOpacity(0.45),
                                   blurRadius: 6,
                                 ),
                               ],
@@ -755,7 +755,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                                   gradient: LinearGradient(
                                     colors: [
                                       Colors.transparent,
-                                      Colors.white.withValues(alpha: 0.24),
+                                      Colors.white.withOpacity(0.24),
                                       Colors.transparent,
                                     ],
                                   ),
@@ -787,9 +787,9 @@ class _MainMenuPageState extends State<MainMenuPage>
         margin: EdgeInsets.symmetric(vertical: isLandscape ? 2 : 4),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.grey.shade600.withValues(alpha: 0.30),
+          color: Colors.grey.shade600.withOpacity(0.30),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.black.withValues(alpha: 0.38), width: 2),
+          border: Border.all(color: Colors.black.withOpacity(0.38), width: 2),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -849,7 +849,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                     border: Border.all(color: Colors.black, width: 2.0),
                     boxShadow: [
                       BoxShadow(
-                        color: style.colors.first.withValues(alpha: glowStrength),
+                        color: style.colors.first.withOpacity(glowStrength),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -861,12 +861,12 @@ class _MainMenuPageState extends State<MainMenuPage>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Colors.white.withValues(alpha: 0.40),
-                          Colors.white.withValues(alpha: 0.06),
+                          Colors.white.withOpacity(0.40),
+                          Colors.white.withOpacity(0.06),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.black.withValues(alpha: 0.3), width: 1.0),
+                      border: Border.all(color: Colors.black.withOpacity(0.3), width: 1.0),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -877,13 +877,13 @@ class _MainMenuPageState extends State<MainMenuPage>
                           height: iconSize + 12,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white.withValues(alpha: 0.25),
-                            border: Border.all(color: Colors.black.withValues(alpha: 0.5), width: 1.2),
+                            color: Colors.white.withOpacity(0.25),
+                            border: Border.all(color: Colors.black.withOpacity(0.5), width: 1.2),
                           ),
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
-                              Icon(icon, color: Colors.black.withValues(alpha: 0.60), size: iconSize + 2),
+                              Icon(icon, color: Colors.black.withOpacity(0.60), size: iconSize + 2),
                               Icon(icon, color: Colors.white, size: iconSize),
                             ],
                           ),
@@ -979,7 +979,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.72),
+                      color: Colors.white.withOpacity(0.72),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.black, width: 2),
                     ),
@@ -1006,7 +1006,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.72),
+                        color: Colors.white.withOpacity(0.72),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.black, width: 2),
                         boxShadow: const [
@@ -1336,7 +1336,7 @@ class _LogoSparkPainter extends CustomPainter {
     final ringPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4
-      ..color = Colors.white.withValues(alpha: 0.18);
+      ..color = Colors.white.withOpacity(0.18);
     canvas.drawCircle(center, radius * 0.88, ringPaint);
 
     const sparkCount = 12;
@@ -1355,14 +1355,14 @@ class _LogoSparkPainter extends CustomPainter {
 
       final sparkPaint = Paint()
         ..style = PaintingStyle.fill
-        ..color = color.withValues(alpha: 0.95);
+        ..color = color.withOpacity(0.95);
       canvas.drawCircle(sparkPosition, 1.4 + (i % 3) * 0.35, sparkPaint);
 
       final streakPaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeWidth = 0.9
-        ..color = color.withValues(alpha: 0.45);
+        ..color = color.withOpacity(0.45);
       canvas.drawLine(
         sparkPosition - const Offset(2, 0),
         sparkPosition + const Offset(2, 0),

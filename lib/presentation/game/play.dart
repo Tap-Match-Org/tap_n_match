@@ -657,7 +657,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
 
     try {
       final response = await _client.put(
-        Uri.parse('http://localhost:8000/complete-level/$userId'),
+        ApiConfig.getUri('/complete-level/$userId'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );
@@ -1185,7 +1185,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
 
   Widget _buildCountdownOverlay() {
     return Container(
-      color: Colors.black.withValues(alpha: 0.5),
+      color: Colors.black.withOpacity(0.5),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1245,7 +1245,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
       key: _scoreBarKey,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
+        color: Colors.white.withOpacity(0.92),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black, width: 2),
         boxShadow: const [
@@ -1335,7 +1335,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
                               child: Icon(
                                 _getSymbolForValue(gridData[index]),
                                 size: boxSize * 0.6,
-                                color: Colors.black.withValues(alpha: 0.3),
+                                color: Colors.black.withOpacity(0.3),
                               ),
                             )
                           : null,

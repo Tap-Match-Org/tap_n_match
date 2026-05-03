@@ -664,7 +664,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
                           child: Icon(
                             _getSymbolForValue(gridData[index]),
                             size: 20,
-                            color: Colors.black.withValues(alpha: 0.3),
+                            color: Colors.black.withOpacity(0.3),
                           ),
                         )
                       : null,

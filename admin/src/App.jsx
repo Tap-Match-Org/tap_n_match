@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000';
+// Use /api proxy in development (Vite), or fall back to absolute URL if needed.
+// This allows the Vite proxy defined in vite.config.js to handle CORS.
+const API_BASE_URL = window.location.hostname === 'localhost' ? '/api' : 'http://localhost:8000';
 const POLL_INTERVAL_MS = 20000;
 const THEME_NAME_MAP = {
     '#A9A9A9': 'Default',

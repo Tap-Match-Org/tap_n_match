@@ -701,13 +701,17 @@ def send_email_code_message(email: str, code: str, subject: str):
     msg["To"] = email
 
     try:
-        print(f"[DEBUG] Generated code for {email}: {code}")
+        print(f"[DEBUG] Attempting to send email to {email} with code {code}...")
         server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.send_message(msg)
         server.quit()
-    except Exception:
-        print(f"[WARNING] Could not send email. Code: {code}")
+        print(f"[DEBUG] Email successfully sent to {email}.")
+    except Exception as e:
+        print(f"[ERROR] Failed to send email to {email}. Error: {str(e)}")
+        # We don't raise here to avoid leaking SMTP details to the client, 
+        # but the code is still stored in pending_codes/admin_pending_codes, 
+        # so it can be verified if known.
 
 
 def split_csv(raw_value: str | None) -> list[str]:

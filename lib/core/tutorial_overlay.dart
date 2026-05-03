@@ -145,7 +145,7 @@ class _GuidedTutorialOverlayState extends State<GuidedTutorialOverlay> {
                       constraints: const BoxConstraints(maxWidth: 340),
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE8EEF7).withValues(alpha: step.cardOpacity),
+                          color: const Color(0xFFE8EEF7).withOpacity(step.cardOpacity),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: Colors.black, width: 3),
                           boxShadow: const [
@@ -390,17 +390,17 @@ class _TutorialOverlayPainter extends CustomPainter {
     );
 
     final outerGlowPaint = Paint()
-      ..color = const Color(0xFFFFF0B8).withValues(alpha: 0.22)
+      ..color = const Color(0xFFFFF0B8).withOpacity(0.22)
       ..style = PaintingStyle.fill;
     canvas.drawRRect(outerGlowRRect, outerGlowPaint);
 
     final glowPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.34)
+      ..color = Colors.white.withOpacity(0.34)
       ..style = PaintingStyle.fill;
     canvas.drawRRect(highlightRRect, glowPaint);
 
     final haloPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.45)
+      ..color = Colors.white.withOpacity(0.45)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 8;
     canvas.drawRRect(highlightRRect, haloPaint);
@@ -425,7 +425,7 @@ class _TutorialOverlayPainter extends CustomPainter {
       ..strokeWidth = 4
       ..strokeCap = StrokeCap.round;
     final shadowPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.22)
+      ..color = Colors.black.withOpacity(0.22)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 8
       ..strokeCap = StrokeCap.round;

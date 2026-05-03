@@ -510,7 +510,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
                 child: Container(
                   width: MediaQuery.of(context).size.width * 0.85,
                   height: MediaQuery.of(context).size.height * 0.75,
-                  decoration: BoxDecoration(color: const Color(0xFFD9D9D9).withValues(alpha: 0.9), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.black, width: 3)),
+                  decoration: BoxDecoration(color: const Color(0xFFD9D9D9).withOpacity(0.9), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.black, width: 3)),
                   child: Column(
                     children: [
                       _buildHeader(),
@@ -583,7 +583,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
         children: [
           Container(
             width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 6),
-            decoration: BoxDecoration(color: headerColor.withValues(alpha: 0.3), border: const Border(bottom: BorderSide(color: Colors.black, width: 2))),
+            decoration: BoxDecoration(color: headerColor.withOpacity(0.3), border: const Border(bottom: BorderSide(color: Colors.black, width: 2))),
             child: Text(title, textAlign: TextAlign.center, style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold, fontSize: 14)),
           ),
           Expanded(child: items.isEmpty ? Center(child: Text("None", style: GoogleFonts.pixelifySans(color: Colors.grey, fontSize: 12))) : ListView(padding: const EdgeInsets.all(8), children: items)),
@@ -623,7 +623,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
                 color: isSelected ? Colors.white : Colors.black,
                 width: isSelected ? 3 : 1.5,
               ),
-              boxShadow: isSelected ? [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 4, spreadRadius: 1)] : [],
+              boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)] : [],
             ),
             child: Align(
               alignment: Alignment.center,
@@ -669,7 +669,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
                 color: isSelected ? Colors.white : Colors.black,
                 width: isSelected ? 3 : 1.5,
               ),
-              boxShadow: isSelected ? [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 4, spreadRadius: 1)] : [],
+              boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)] : [],
             ),
             child: Center(
               child: Text(
@@ -714,7 +714,7 @@ class _ThemePageState extends State<ThemePage> with TickerProviderStateMixin {
                 color: isSelected ? Colors.white : Colors.black,
                 width: isSelected ? 3 : 1.5,
               ),
-              boxShadow: isSelected ? [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 4, spreadRadius: 1)] : [],
+              boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)] : [],
             ),
             child: Center(
               child: Text(
