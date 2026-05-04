@@ -19,6 +19,8 @@ dependencies:
   file_picker: ^8.0.0
   shared_preferences: ^2.5.5
   confetti: ^0.8.0
+  firebase_auth: ^4.16.0
+  cloud_firestore: ^4.17.5
 
 dev_dependencies:
   flutter_test:

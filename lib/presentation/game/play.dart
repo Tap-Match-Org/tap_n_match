@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:confetti/confetti.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:tap_n_match/core/persistence_service.dart';
 import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/core/theme_background.dart';
 import 'package:tap_n_match/core/tutorial_overlay.dart';
@@ -666,9 +668,15 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
         throw Exception('Unexpected status code ${response.statusCode}');
       }
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+// ... rest of imports ...
+
+  Future<void> _handleWin({required bool triggeredByDone}) async {
+// ... existing logic ...
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final scoreBreakdown = (data['score_breakdown'] as Map<String, dynamic>?) ?? {};
       final earnedScore = (scoreBreakdown['total_earned'] as num?)?.toInt() ?? 0;
+      
       if (mounted) {
         setState(() {
           currentScore += earnedScore;
@@ -676,6 +684,24 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           achievementCount = (data['achievement_count'] as int?) ?? achievementCount;
         });
       }
+
+      // --- FIRESTORE MIRROR (TEACHER REQUIREMENT) ---
+      try {
+        final username = await PersistenceService.getUsername() ?? "Unknown";
+        await FirebaseFirestore.instance.collection('leaderboards').doc('user_$userId').set({
+          'username': username,
+          'total_score': currentScore,
+          'highest_level': currentLevel,
+          'last_updated': FieldValue.serverTimestamp(),
+          'platform': 'hybrid_sqlite_firestore',
+        }, SetOptions(merge: true));
+        debugPrint("Firestore Mirror Sync Success");
+      } catch (fe) {
+        debugPrint("Firestore Mirror Sync Failed: $fe");
+      }
+      // ----------------------------------------------
+
+
     } catch (e) {
       debugPrint("Error recording score: $e");
       if (mounted) {

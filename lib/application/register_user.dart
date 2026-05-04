@@ -10,12 +10,14 @@ class RegisterUser {
     required String email,
     required String password,
     required String code,
+    String? firebaseUid,
   }) {
     return repository.register(
       username: username,
       email: email,
       password: password,
       code: code,
+      firebaseUid: firebaseUid,
     );
   }
 }

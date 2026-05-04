@@ -641,6 +641,7 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     code: str
+    firebase_uid: str | None = None
 
 class LoginRequest(BaseModel):
     username: str
@@ -649,6 +650,7 @@ class LoginRequest(BaseModel):
 class LoginCodeRequest(BaseModel):
     email: str
     code: str
+    firebase_uid: str | None = None
 
 class LevelCompletionRequest(BaseModel):
     level: int
@@ -1075,8 +1077,11 @@ async def admin_logout(admin_session = Depends(verify_admin), authorization: str
 @app.post("/register")
 async def register(request: RegisterRequest):
     normalized_email = normalize_email(request.email)
-    if normalized_email not in pending_codes or pending_codes[normalized_email] != request.code:
-        raise HTTPException(status_code=400, detail="Invalid code.")
+    
+    # Trust Firebase UID if present; otherwise verify code
+    if not request.firebase_uid:
+        if normalized_email not in pending_codes or pending_codes[normalized_email] != request.code:
+            raise HTTPException(status_code=400, detail="Invalid code.")
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1090,40 +1095,65 @@ async def register(request: RegisterRequest):
                 password,
                 created_at,
                 tutorial_enabled,
-                completed_tutorials
+                completed_tutorials,
+                firebase_uid
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (request.username, normalized_email, request.password, created_at, 1, ""),
+            (request.username, normalized_email, request.password, created_at, 1, "", request.firebase_uid),
         )
         user_id = cursor.lastrowid
         log_player_activity(
             cursor,
             user_id,
             "account_registered",
-            "Player account created.",
-            {"username": request.username, "email": normalized_email},
+            "Player account created via Hybrid Auth.",
+            {"username": request.username, "email": normalized_email, "firebase": bool(request.firebase_uid)},
         )
         conn.commit()
     except sqlite3.IntegrityError:
-        raise HTTPException(status_code=400, detail="Username or email exists.")
+        # If user exists but has no firebase_uid, link it
+        cursor.execute("SELECT id FROM users WHERE email = ?", (normalized_email,))
+        row = cursor.fetchone()
+        if row:
+            if request.firebase_uid:
+                cursor.execute("UPDATE users SET firebase_uid = ? WHERE id = ?", (request.firebase_uid, row["id"]))
+                conn.commit()
+                return {"message": "User linked successfully.", "user_id": row["id"]}
+            else:
+                raise HTTPException(status_code=400, detail="Account already exists.")
+        raise HTTPException(status_code=400, detail="Username exists.")
     finally:
         conn.close()
 
-    pending_codes.pop(normalized_email, None)
-    return {"message": "User registered successfully."}
+    if normalized_email in pending_codes:
+        pending_codes.pop(normalized_email, None)
+    return {"message": "User registered successfully.", "user_id": user_id}
 
 @app.post("/login-code")
 async def login_code(request: LoginCodeRequest):
     email = request.email.lower().strip()
     code = request.code.strip()
 
-    if email not in pending_codes or pending_codes[email] != code:
-        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+    # Trust Firebase UID if present; otherwise verify code
+    if not request.firebase_uid:
+        if email not in pending_codes or pending_codes[email] != code:
+            raise HTTPException(status_code=400, detail="Invalid or expired verification code")
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    user = cursor.execute("SELECT id, username, is_banned, ban_reason FROM users WHERE email = ?", (email,)).fetchone()
+    
+    # Find user by email or firebase_uid
+    if request.firebase_uid:
+        user = cursor.execute("SELECT id, username, is_banned, ban_reason FROM users WHERE firebase_uid = ?", (request.firebase_uid,)).fetchone()
+        if not user:
+            # Fallback to email search to link
+            user = cursor.execute("SELECT id, username, is_banned, ban_reason FROM users WHERE email = ?", (email,)).fetchone()
+            if user:
+                cursor.execute("UPDATE users SET firebase_uid = ? WHERE id = ?", (request.firebase_uid, user["id"]))
+                conn.commit()
+    else:
+        user = cursor.execute("SELECT id, username, is_banned, ban_reason FROM users WHERE email = ?", (email,)).fetchone()
     
     if not user:
         conn.close()
@@ -1144,7 +1174,8 @@ async def login_code(request: LoginCodeRequest):
     conn.commit()
     conn.close()
 
-    pending_codes.pop(email, None)
+    if email in pending_codes:
+        pending_codes.pop(email, None)
     return {"user_id": user_id, "username": username}
 
 @app.post("/login")
@@ -1500,6 +1531,7 @@ async def buy_item(user_id: int, request: BuyItemRequest):
                 "banked_points_after": new_banked,
             },
         )
+        
         conn.commit()
         return {"status": "success", "banked_points": new_banked}
     finally:

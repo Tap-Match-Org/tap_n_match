@@ -2,14 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:tap_n_match/application/register_user.dart';
 import 'package:tap_n_match/core/soundmanager.dart';
+import 'package:tap_n_match/infrastructure/firebase_auth_repository.dart';
 import 'package:tap_n_match/repository/auth_repository.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegisterPage extends StatefulWidget {
   final AuthRepository authRepository;
+  final FirebaseAuthRepository firebaseAuthRepository;
   final RegisterUser? registerUser;
 
-  RegisterPage({super.key, AuthRepository? authRepository, RegisterUser? registerUser})
-      : authRepository = authRepository ?? AuthRepository(),
+  RegisterPage({
+    super.key,
+    AuthRepository? authRepository,
+    FirebaseAuthRepository? firebaseAuthRepository,
+    RegisterUser? registerUser,
+  })  : authRepository = authRepository ?? AuthRepository(),
+        firebaseAuthRepository = firebaseAuthRepository ?? FirebaseAuthRepository(),
         registerUser = registerUser ?? RegisterUser(authRepository ?? AuthRepository());
 
   @override
@@ -87,18 +95,40 @@ class _RegisterPageState extends State<RegisterPage> {
 
     setState(() => _isLoading = true);
 
-    final response = await widget.registerUser!.execute(
-      username: username,
-      email: email,
-      password: password,
-      code: code,
-    );
+    try {
+      // 1. Create account in Firebase first (Teacher requirement)
+      final firebaseResponse = await widget.firebaseAuthRepository.register(
+        email: email,
+        password: password,
+        username: username,
+      );
 
-    if (response.status == AuthStatus.success) {
-      _showMsg("Account Verified! Going to Login...", isError: false);
-      if (mounted) Navigator.of(context).pop();
-    } else {
-      _showMsg(response.errorMessage ?? "Error creating account", isError: true);
+      if (firebaseResponse.status != AuthStatus.success) {
+        _showMsg(firebaseResponse.errorMessage ?? "Firebase Registration Failed", isError: true);
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Get the UID from Firebase to link it
+      final firebaseUid = FirebaseAuth.instance.currentUser?.uid;
+
+      // 2. Register in SQLite and link the Firebase UID
+      final response = await widget.registerUser!.execute(
+        username: username,
+        email: email,
+        password: password,
+        code: code,
+        firebaseUid: firebaseUid,
+      );
+
+      if (response.status == AuthStatus.success) {
+        _showMsg("Account Verified! Going to Login...", isError: false);
+        if (mounted) Navigator.of(context).pop();
+      } else {
+        _showMsg(response.errorMessage ?? "Error linking account to game database", isError: true);
+      }
+    } catch (e) {
+      _showMsg("Registration error: $e", isError: true);
     }
 
     if (mounted) setState(() => _isLoading = false);

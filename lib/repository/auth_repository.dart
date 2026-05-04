@@ -40,7 +40,7 @@ class AuthRepository {
     }
   }
 
-  Future<AuthResponse> loginWithCode(String email, String code) async {
+  Future<AuthResponse> loginWithCode(String email, String code, {String? firebaseUid}) async {
     try {
       final response = await _client.post(
         ApiConfig.getUri('/login-code'),
@@ -48,6 +48,7 @@ class AuthRepository {
         body: jsonEncode({
           'email': email,
           'code': code,
+          'firebase_uid': firebaseUid,
         }),
       );
 
@@ -91,6 +92,7 @@ class AuthRepository {
     required String email,
     required String password,
     required String code,
+    String? firebaseUid,
   }) async {
     try {
       final response = await _client.post(
@@ -101,17 +103,18 @@ class AuthRepository {
           "email": email,
           "password": password,
           "code": code,
+          "firebase_uid": firebaseUid,
         }),
       );
 
+      final data = jsonDecode(response.body);
       if (response.statusCode == 200) {
         return AuthResponse.success(
-          userId: 0, // Register doesn't always return ID immediately in current backend
+          userId: (data['user_id'] as num?)?.toInt() ?? 0,
           username: username,
         );
       } else {
-        final error = jsonDecode(response.body);
-        return AuthResponse.error(error['detail'] ?? "Error creating account");
+        return AuthResponse.error(data['detail'] ?? "Error creating account");
       }
     } catch (e) {
       return AuthResponse.error("Server Error");

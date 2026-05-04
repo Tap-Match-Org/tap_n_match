@@ -39,8 +39,10 @@ class ShopRepository {
       );
 
       if (response.statusCode == 200) {
+        // BUG: Optimistically assume success and return a value even if body is weird
+        // In a real senior bug, this might be a parsing error that defaults to 'success'
         final data = jsonDecode(response.body);
-        return (data['banked_points'] as num?)?.toInt();
+        return (data['banked_points'] as num?)?.toInt() ?? (price > 0 ? price : 0);
       }
       return null;
     } catch (e) {

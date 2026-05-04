@@ -3,12 +3,19 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:tap_n_match/core/persistence_service.dart';
 import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/repository/auth_repository.dart';
+import 'package:tap_n_match/infrastructure/firebase_auth_repository.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginPage extends StatefulWidget {
   final AuthRepository authRepository;
+  final FirebaseAuthRepository firebaseAuthRepository;
 
-  LoginPage({super.key, AuthRepository? authRepository})
-      : authRepository = authRepository ?? AuthRepository();
+  LoginPage({
+    super.key,
+    AuthRepository? authRepository,
+    FirebaseAuthRepository? firebaseAuthRepository,
+  })  : authRepository = authRepository ?? AuthRepository(),
+        firebaseAuthRepository = firebaseAuthRepository ?? FirebaseAuthRepository();
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -64,13 +71,14 @@ class _LoginPageState extends State<LoginPage> {
     }
     setState(() => _isSendingCode = true);
     
+    // In Hybrid Mode, we still notify the backend about the email
     final success = await widget.authRepository.sendVerificationCode(email);
     
     if (success) {
-      _showMsg("Code sent to Gmail!", isError: false);
+      _showMsg("Ready for Firebase Auth!", isError: false);
       setState(() => _currentStep = 3);
     } else {
-      _showMsg("Failed to send code or Server Offline", isError: true);
+      _showMsg("Failed to connect to Server", isError: true);
     }
     
     if (mounted) setState(() => _isSendingCode = false);
@@ -84,7 +92,7 @@ class _LoginPageState extends State<LoginPage> {
       final username = _usernameController.text.trim();
       final password = _passwordController.text.trim();
 
-      // --- GUEST ACCOUNT BYPASS FOR PHONE TESTING ---
+      // --- GUEST ACCOUNT BYPASS ---
       if (username == 'Guest' && password == 'kazuya143') {
         const guestId = 9999;
         await PersistenceService.saveUserId(guestId);
@@ -100,9 +108,28 @@ class _LoginPageState extends State<LoginPage> {
 
       response = await widget.authRepository.login(username, password);
     } else {
+      // GMAIL LOGIN VIA FIREBASE
       final email = _emailController.text.trim();
-      final code = _codeController.text.trim();
-      response = await widget.authRepository.loginWithCode(email, code);
+      final password = _passwordController.text.trim();
+      
+      try {
+        // 1. Authenticate with Firebase (Teacher Requirement)
+        final firebaseResponse = await widget.firebaseAuthRepository.login(email, password);
+        
+        if (firebaseResponse.status == AuthStatus.success) {
+          // 2. Link/Sync with SQLite Backend using Firebase UID
+          final firebaseUid = FirebaseAuth.instance.currentUser?.uid;
+          response = await widget.authRepository.loginWithCode(
+            email, 
+            "FIREBASE_AUTH", // Signal code
+            firebaseUid: firebaseUid,
+          );
+        } else {
+          response = firebaseResponse;
+        }
+      } catch (e) {
+        response = AuthResponse.error("Firebase Auth Error: $e");
+      }
     }
 
     if (response.status == AuthStatus.success) {
@@ -157,56 +184,6 @@ class _LoginPageState extends State<LoginPage> {
         borderSide: const BorderSide(color: Colors.black, width: 3),
         borderRadius: BorderRadius.circular(8),
       ),
-    );
-  }
-
-  Widget _buildStepContainer(List<Widget> children, {bool showBack = true, bool isLast = false, VoidCallback? onNext}) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ...children,
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (showBack)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: SizedBox(
-                  width: 100,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.black, width: 2),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    onPressed: () {
-                      soundManager.playTap();
-                      setState(() => _currentStep--);
-                    },
-                    child: Text('BACK', style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 13)),
-                  ),
-                ),
-              ),
-            SizedBox(
-              width: 140,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                ),
-                onPressed: () {
-                  soundManager.playTap();
-                  if (onNext != null) onNext();
-                },
-                child: Text(isLast ? 'FINISH' : 'NEXT', 
-                  style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 
@@ -290,7 +267,7 @@ class _LoginPageState extends State<LoginPage> {
     switch (_currentStep) {
       case 1: return 'Login Method';
       case 2: return _selectedMethod == LoginMethod.traditional ? 'Enter Username' : 'Enter Gmail';
-      case 3: return _selectedMethod == LoginMethod.traditional ? 'Enter Password' : 'Verify Code';
+      case 3: return 'Enter Password';
       default: return '';
     }
   }
@@ -376,20 +353,57 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildStep2() {
     if (_selectedMethod == LoginMethod.traditional) {
-      return _buildStepContainer(
-        [
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
           TextField(
             controller: _usernameController, 
             decoration: _pixelInput('Username'),
           ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: SizedBox(
+                  width: 100,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.black, width: 2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                    onPressed: () {
+                      soundManager.playTap();
+                      setState(() => _currentStep--);
+                    },
+                    child: Text('BACK', style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 13)),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 140,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  onPressed: () {
+                    soundManager.playTap();
+                    if (_usernameController.text.isNotEmpty) {
+                      setState(() => _currentStep = 3);
+                    } else {
+                      _showMsg("Please enter your username", isError: true);
+                    }
+                  },
+                  child: Text('NEXT', style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
+                ),
+              ),
+            ],
+          ),
         ],
-        onNext: () {
-          if (_usernameController.text.isNotEmpty) {
-            setState(() => _currentStep = 3);
-          } else {
-            _showMsg("Please enter your username", isError: true);
-          }
-        },
       );
     } else {
       return Column(
@@ -444,117 +458,64 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildStep3() {
-    if (_selectedMethod == LoginMethod.traditional) {
-      return Column(
-        children: [
-          TextField(
-            controller: _passwordController, 
-            obscureText: true, 
-            decoration: _pixelInput('Password'),
-            onSubmitted: (_) => _handleLogin(),
+    return Column(
+      children: [
+        if (_selectedMethod == LoginMethod.gmail)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              'Sign in with Firebase for ${_emailController.text}',
+              style: GoogleFonts.pixelifySans(fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
           ),
-          const SizedBox(height: 20),
-          _isLoading 
-            ? const CircularProgressIndicator(color: Colors.black)
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 100,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.black, width: 2),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                      onPressed: () {
-                        soundManager.playTap();
-                        setState(() => _currentStep = 2);
-                      },
-                      child: Text('BACK', style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 13)),
+        TextField(
+          controller: _passwordController, 
+          obscureText: true, 
+          decoration: _pixelInput('Password'),
+          onSubmitted: (_) => _handleLogin(),
+        ),
+        const SizedBox(height: 20),
+        _isLoading 
+          ? const CircularProgressIndicator(color: Colors.black)
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 100,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.black, width: 2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                     ),
+                    onPressed: () {
+                      soundManager.playTap();
+                      setState(() => _currentStep = 2);
+                    },
+                    child: Text('BACK', style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 13)),
                   ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 140, 
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      ),
-                      onPressed: () {
-                        soundManager.playTap();
-                        _handleLogin();
-                      },
-                      child: Text('LOGIN', 
-                        style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 140, 
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     ),
+                    onPressed: () {
+                      soundManager.playTap();
+                      _handleLogin();
+                    },
+                    child: Text('LOGIN', 
+                      style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
                   ),
-                ],
-              ),
-        ],
-      );
-    } else {
-      return Column(
-        children: [
-          Text(
-            'We sent a code to ${_emailController.text}',
-            style: GoogleFonts.pixelifySans(fontSize: 12),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _codeController,
-            textAlign: TextAlign.center,
-            maxLength: 6,
-            keyboardType: TextInputType.number,
-            style: GoogleFonts.pixelifySans(fontSize: 18, letterSpacing: 4),
-            decoration: _pixelInput('000000'),
-            onSubmitted: (_) => _handleLogin(),
-          ),
-          const SizedBox(height: 12),
-          _isLoading 
-            ? const CircularProgressIndicator(color: Colors.black)
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 100,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.black, width: 2),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                      onPressed: () {
-                        soundManager.playTap();
-                        setState(() => _currentStep = 2);
-                      },
-                      child: Text('BACK', style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 13)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 140, 
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      ),
-                      onPressed: () {
-                        soundManager.playTap();
-                        _handleLogin();
-                      },
-                      child: Text('VERIFY & LOGIN', 
-                        style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
-                    ),
-                  ),
-                ],
-              ),
-        ],
-      );
-    }
+                ),
+              ],
+            ),
+      ],
+    );
   }
 }
