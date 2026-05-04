@@ -1,32 +1,41 @@
 import pytest
-from httpx import ASGITransport, AsyncClient
-from backend.main import app, pending_codes
 import sqlite3
+import json
 import os
-from unittest.mock import patch
-from datetime import date
+from unittest.mock import patch, MagicMock
+from fastapi.testclient import TestClient
+from httpx import AsyncClient, ASGITransport
+from backend.main import app, pending_codes, ACTIVITY_EVENT_LABELS
 
-# Use a separate test database
-TEST_DB = "test_users.db"
-ORIGINAL_CONNECT = sqlite3.connect
+# Use a shared in-memory database URI with cache=shared to keep the database alive 
+# across multiple connections as long as at least one connection is open.
+TEST_DB_URI = "file:cached_test_db?mode=memory&cache=shared"
 
-def mock_connect(database, *args, **kwargs):
-    # Always redirect to TEST_DB regardless of what is requested
-    return ORIGINAL_CONNECT(TEST_DB, *args, **kwargs)
+# Keep one connection open for the duration of the test session to prevent the DB from being wiped.
+_KEEPALIVE_CONN = sqlite3.connect(TEST_DB_URI, uri=True)
+
+def mock_get_db_connection():
+    # Return a new connection to the shared in-memory database.
+    # main.py can safely call conn.close() on this.
+    conn = sqlite3.connect(TEST_DB_URI, uri=True)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 @pytest.fixture(autouse=True)
 def setup_db():
-    # Patch sqlite3.connect in backend.main to use our test database
-    with patch("sqlite3.connect", side_effect=mock_connect):
-        # Ensure clean state
-        if os.path.exists(TEST_DB):
-            os.remove(TEST_DB)
+    # Patch get_db_connection in backend.main
+    with patch("backend.main.get_db_connection", side_effect=mock_get_db_connection):
+        # Initialize/Reset the test database schema using the keepalive connection
+        cursor = _KEEPALIVE_CONN.cursor()
         
-        # Initialize the test database schema using the real connect
-        conn = ORIGINAL_CONNECT(TEST_DB)
-        cursor = conn.cursor()
+        # Disable foreign keys temporarily if needed, though not used here
+        cursor.execute("DROP TABLE IF EXISTS users")
+        cursor.execute("DROP TABLE IF EXISTS player_activity_logs")
+        cursor.execute("DROP TABLE IF EXISTS reports")
+        
+        # Create users table with all columns from main.py
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
+            CREATE TABLE users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 email TEXT UNIQUE NOT NULL,
@@ -40,6 +49,7 @@ def setup_db():
                 daily_attempts INTEGER DEFAULT 0,
                 last_attempt_date TEXT,
                 created_at TEXT,
+                last_active_at TEXT,
                 total_score INTEGER DEFAULT 0,
                 highest_score INTEGER DEFAULT 0,
                 highest_level INTEGER DEFAULT 0,
@@ -68,76 +78,90 @@ def setup_db():
                 completed_tutorials TEXT DEFAULT ''
             )
         """)
-        conn.commit()
-        conn.close()
         
+        cursor.execute("""
+            CREATE TABLE player_activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                metadata TEXT DEFAULT '{}',
+                created_at TEXT NOT NULL
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reporter_id INTEGER,
+                reported_id INTEGER,
+                reason TEXT,
+                timestamp TEXT,
+                status TEXT DEFAULT 'Pending'
+            )
+        """)
+        
+        _KEEPALIVE_CONN.commit()
+
         yield
         
-        if os.path.exists(TEST_DB):
-            os.remove(TEST_DB)
+        pending_codes.clear()
 
 @pytest.mark.asyncio
 async def test_register_success():
     # Mock verification code
     pending_codes["test@gmail.com"] = "123456"
-    
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        with patch("sqlite3.connect", side_effect=mock_connect):
-            response = await ac.post("/register", json={
-                "username": "testuser",
-                "email": "test@gmail.com",
-                "password": "password123",
-                "code": "123456"
-            })
+        response = await ac.post("/register", json={
+            "username": "testuser",
+            "email": "test@gmail.com",
+            "password": "password123",
+            "code": "123456"
+        })
     
     assert response.status_code == 200
-    assert response.json() == {"message": "User registered successfully."}
+    assert response.json()["message"] == "User registered successfully."
 
 @pytest.mark.asyncio
 async def test_login_success():
     # Pre-populate user
-    conn = ORIGINAL_CONNECT(TEST_DB)
-    cursor = conn.cursor()
+    cursor = _KEEPALIVE_CONN.cursor()
     cursor.execute(
         "INSERT INTO users (username, email, password, is_banned) VALUES (?, ?, ?, ?)",
         ("loginuser", "login@gmail.com", "secret", 0)
     )
-    conn.commit()
-    conn.close()
+    _KEEPALIVE_CONN.commit()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        with patch("sqlite3.connect", side_effect=mock_connect):
-            response = await ac.post("/login", json={
-                "username": "loginuser",
-                "password": "secret"
-            })
+        response = await ac.post("/login", json={
+            "username": "loginuser",
+            "password": "secret"
+        })
     
     assert response.status_code == 200
-    data = response.json()
-    assert data["username"] == "loginuser"
-    assert "user_id" in data
+    assert response.json()["username"] == "loginuser"
+    assert "user_id" in response.json()
 
 @pytest.mark.asyncio
 async def test_login_banned():
     # Pre-populate banned user
-    conn = ORIGINAL_CONNECT(TEST_DB)
-    cursor = conn.cursor()
+    cursor = _KEEPALIVE_CONN.cursor()
     cursor.execute(
         "INSERT INTO users (username, email, password, is_banned, ban_reason) VALUES (?, ?, ?, ?, ?)",
-        ("banneduser", "banned@gmail.com", "secret", 1, "Testing ban")
+        ("banneduser", "banned@gmail.com", "secret", 1, "Cheating")
     )
-    conn.commit()
-    conn.close()
+    _KEEPALIVE_CONN.commit()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        with patch("sqlite3.connect", side_effect=mock_connect):
-            response = await ac.post("/login", json={
-                "username": "banneduser",
-                "password": "secret"
-            })
+        response = await ac.post("/login", json={
+            "username": "banneduser",
+            "password": "secret"
+        })
     
     assert response.status_code == 403
-    assert "Testing ban" in response.json()["detail"]["reason"]
+    assert "suspended" in response.json()["detail"]["message"].lower()
+    assert response.json()["detail"]["reason"] == "Cheating"

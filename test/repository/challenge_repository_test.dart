@@ -20,13 +20,15 @@ void main() {
   });
 
   group('ChallengeRepository - fetchWeeklyChallenge', () {
-    test('returns challenge data on success (200)', () async {
+    test('returns Challenge entity on success (200)', () async {
       final challengeData = {
         'id': 'week_1',
         'title': 'Match 50 grids',
+        'description': 'Test description',
         'target_count': 50,
         'current_progress': 10,
         'is_complete': false,
+        'reward_points': 100,
       };
       when(() => mockHttpClient.get(any())).thenAnswer(
         (_) async => http.Response(jsonEncode(challengeData), 200),
@@ -35,8 +37,10 @@ void main() {
       final result = await challengeRepository.fetchWeeklyChallenge(1);
 
       expect(result, isNotNull);
-      expect(result!['title'], 'Match 50 grids');
-      expect(result['current_progress'], 10);
+      expect(result!.title, 'Match 50 grids');
+      expect(result.currentProgress, 10);
+      expect(result.targetCount, 50);
+      expect(result.rewardPoints, 100);
     });
 
     test('returns null on failure', () async {
