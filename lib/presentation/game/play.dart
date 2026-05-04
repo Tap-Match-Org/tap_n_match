@@ -668,11 +668,6 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
         throw Exception('Unexpected status code ${response.statusCode}');
       }
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-// ... rest of imports ...
-
-  Future<void> _handleWin({required bool triggeredByDone}) async {
-// ... existing logic ...
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final scoreBreakdown = (data['score_breakdown'] as Map<String, dynamic>?) ?? {};
       final earnedScore = (scoreBreakdown['total_earned'] as num?)?.toInt() ?? 0;
@@ -700,7 +695,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
         debugPrint("Firestore Mirror Sync Failed: $fe");
       }
       // ----------------------------------------------
-
 
     } catch (e) {
       debugPrint("Error recording score: $e");
