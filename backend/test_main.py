@@ -2,10 +2,11 @@ import pytest
 import sqlite3
 import json
 import os
+from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from httpx import AsyncClient, ASGITransport
-from backend.main import app, pending_codes, ACTIVITY_EVENT_LABELS
+from backend.main import app, pending_codes, ACTIVITY_EVENT_LABELS, admin_sessions
 
 # Use a shared in-memory database URI with cache=shared to keep the database alive 
 # across multiple connections as long as at least one connection is open.
@@ -32,6 +33,7 @@ def setup_db():
         cursor.execute("DROP TABLE IF EXISTS users")
         cursor.execute("DROP TABLE IF EXISTS player_activity_logs")
         cursor.execute("DROP TABLE IF EXISTS reports")
+        cursor.execute("DROP TABLE IF EXISTS admin_activity_logs")
         
         # Create users table with all columns from main.py
         cursor.execute("""
@@ -72,6 +74,7 @@ def setup_db():
                 colorblind_mode INTEGER DEFAULT 0,
                 is_banned INTEGER DEFAULT 0,
                 ban_reason TEXT,
+                firebase_uid TEXT,
                 claimed_rewards TEXT DEFAULT '',
                 seen_rewards TEXT DEFAULT '',
                 tutorial_enabled INTEGER DEFAULT 0,
@@ -100,12 +103,24 @@ def setup_db():
                 status TEXT DEFAULT 'Pending'
             )
         """)
+
+        cursor.execute("""
+            CREATE TABLE admin_activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_email TEXT NOT NULL,
+                action TEXT NOT NULL,
+                details TEXT DEFAULT '{}',
+                target_user_id INTEGER,
+                created_at TEXT NOT NULL
+            )
+        """)
         
         _KEEPALIVE_CONN.commit()
 
         yield
         
         pending_codes.clear()
+        admin_sessions.clear()
 
 @pytest.mark.asyncio
 async def test_register_success():
@@ -165,3 +180,38 @@ async def test_login_banned():
     assert response.status_code == 403
     assert "suspended" in response.json()["detail"]["message"].lower()
     assert response.json()["detail"]["reason"] == "Cheating"
+
+
+@pytest.mark.asyncio
+async def test_ban_user_creates_admin_activity_log():
+    cursor = _KEEPALIVE_CONN.cursor()
+    cursor.execute(
+        "INSERT INTO users (username, email, password, is_banned) VALUES (?, ?, ?, ?)",
+        ("targetuser", "target@gmail.com", "secret", 0)
+    )
+    user_id = cursor.lastrowid
+    _KEEPALIVE_CONN.commit()
+
+    admin_sessions["test-admin-token"] = {
+        "email": "admin@example.com",
+        "expires_at": datetime.now() + timedelta(hours=1),
+    }
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        response = await ac.put(
+            f"/admin/users/{user_id}/ban",
+            json={"reason": "Cheating"},
+            headers={"Authorization": "Bearer test-admin-token"},
+        )
+
+    assert response.status_code == 200
+
+    row = cursor.execute(
+        "SELECT admin_email, action, target_user_id, details FROM admin_activity_logs"
+    ).fetchone()
+    assert row is not None
+    assert row[0] == "admin@example.com"
+    assert row[1] == "ban_user"
+    assert row[2] == user_id
+    assert json.loads(row[3]) == {"reason": "Cheating"}

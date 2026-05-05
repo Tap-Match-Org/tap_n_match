@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import json
 import smtplib, random, secrets
 from email.message import EmailMessage
+from pathlib import Path
 import sqlite3
 from datetime import date, datetime, timedelta
 
@@ -15,6 +16,7 @@ ALLOWED_ADMIN_EMAILS = {
 }
 ADMIN_CODE_TTL_MINUTES = 10
 ADMIN_SESSION_TTL_HOURS = 12
+DB_PATH = Path(__file__).resolve().parent.parent / "users.db"
 
 
 async def verify_admin(
@@ -89,7 +91,7 @@ STANDARD_TUTORIAL_IDS = (
 TUTORIAL_IDS = (WELCOME_TUTORIAL_ID, *STANDARD_TUTORIAL_IDS)
 
 def get_db_connection():
-    conn = sqlite3.connect("users.db", timeout=10.0)
+    conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -750,6 +752,21 @@ def parse_json(raw_value: str | None) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def ensure_admin_activity_logs_table(cursor: sqlite3.Cursor) -> None:
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS admin_activity_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_email TEXT NOT NULL,
+            action TEXT NOT NULL,
+            details TEXT DEFAULT '{}',
+            target_user_id INTEGER,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
+
 def log_admin_activity(
     cursor: sqlite3.Cursor,
     admin_email: str,
@@ -757,6 +774,7 @@ def log_admin_activity(
     details: dict | None = None,
     target_user_id: int | None = None,
 ) -> None:
+    ensure_admin_activity_logs_table(cursor)
     timestamp = current_timestamp()
     cursor.execute(
         """
@@ -1108,6 +1126,7 @@ async def admin_login(request: AdminLoginRequest):
 async def get_admin_activity_logs():
     conn = get_db_connection()
     cursor = conn.cursor()
+    ensure_admin_activity_logs_table(cursor)
     logs = cursor.execute(
         """
         SELECT 
