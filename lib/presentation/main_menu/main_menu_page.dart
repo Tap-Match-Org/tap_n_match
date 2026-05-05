@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:io'; 
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
 import 'package:google_fonts/google_fonts.dart';
@@ -978,17 +978,27 @@ class _MainMenuPageState extends State<MainMenuPage>
                 Navigator.pop(ctx);
               }),
               _buildDialogButton("Yes", () {
-                if (Platform.isAndroid) {
-                  SystemNavigator.pop();
-                } else {
-                  exit(0);
-                }
+                Navigator.pop(ctx);
+                _handleConfirmedExit();
               }),
             ],
           )
         ],
       ),
     );
+  }
+
+  void _handleConfirmedExit() {
+    if (kIsWeb) {
+      return;
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      SystemNavigator.pop();
+      return;
+    }
+
+    SystemNavigator.pop();
   }
 
   Widget _buildDialogButton(String text, VoidCallback onTap) {
