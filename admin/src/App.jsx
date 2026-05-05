@@ -676,7 +676,8 @@ function UsersTab({ adminToken, onMutate, onSelectUser, selectedUserId, initialF
     const fetchUsers = async (searchTerm = search) => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API_BASE_URL}/admin/users?search=${encodeURIComponent(searchTerm)}`, {
+            const apiSearchTerm = searchTerm.startsWith('filter:') ? '' : searchTerm;
+            const response = await axios.get(`${API_BASE_URL}/admin/users?search=${encodeURIComponent(apiSearchTerm)}`, {
                 headers: buildAdminHeaders(adminToken)
             });
             
@@ -723,7 +724,7 @@ function UsersTab({ adminToken, onMutate, onSelectUser, selectedUserId, initialF
                     headers: buildAdminHeaders(adminToken)
                 });
             }
-            await fetchUsers(search);
+            await fetchUsers(search || initialFilter);
             onMutate(user.id);
         } catch (err) {
             setError('Failed to update ban status');
@@ -737,7 +738,7 @@ function UsersTab({ adminToken, onMutate, onSelectUser, selectedUserId, initialF
             await axios.post(`${API_BASE_URL}/admin/users/${userId}/reset`, {}, {
                 headers: buildAdminHeaders(adminToken)
             });
-            await fetchUsers(search);
+            await fetchUsers(search || initialFilter);
             onMutate(userId);
         } catch (err) {
             setError('Failed to reset user progress');
