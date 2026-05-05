@@ -667,7 +667,7 @@ function DataTable({ columns, rows, emptyMessage, onRowClick, selectedId }) {
     );
 }
 
-function UsersTab({ adminToken, onMutate, onSelectUser, selectedUserId, initialFilter = '' }) {
+function UsersTab({ adminToken, onMutate, onSelectUser, selectedUserId, initialFilter = '', refreshNonce = 0 }) {
     const [users, setUsers] = useState([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
@@ -703,7 +703,7 @@ function UsersTab({ adminToken, onMutate, onSelectUser, selectedUserId, initialF
             fetchUsers(initialFilter);
             setSearch(initialFilter.startsWith('filter:') ? '' : initialFilter);
         }
-    }, [adminToken, initialFilter]);
+    }, [adminToken, initialFilter, refreshNonce]);
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -1198,7 +1198,6 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
             });
             setData(response.data);
             setError('');
-            onRefreshComplete?.();
         } catch (err) {
             console.error("Fetch Details Error:", err);
             setError('Failed to fetch player details');
@@ -1211,6 +1210,11 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
         setActivitySearch(''); // Reset search when switching users
         fetchDetails();
     }, [adminToken, selectedUserId, refreshNonce]);
+
+    const handleRefresh = async () => {
+        await fetchDetails();
+        onRefreshComplete?.();
+    };
 
     if (!selectedUserId) {
         return (
@@ -1243,7 +1247,7 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
             <SectionCard
                 title={user ? `${user.username} Overview` : `User ${selectedUserId}`}
                 subtitle="Current stored player state from the game backend."
-                actions={<button type="button" className="btn-secondary" onClick={fetchDetails} disabled={loading}>Refresh</button>}
+                actions={<button type="button" className="btn-secondary" onClick={handleRefresh} disabled={loading}>Refresh</button>}
             >
                 {user ? (
                     <div className="detail-grid">
@@ -1390,6 +1394,7 @@ function Dashboard({ adminToken, adminEmail, onLogout }) {
     const [overviewError, setOverviewError] = useState('');
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [detailRefreshNonce, setDetailRefreshNonce] = useState(0);
+    const [usersRefreshNonce, setUsersRefreshNonce] = useState(0);
     const [userFilter, setUserFilter] = useState('');
     const [appealFilter, setAppealFilter] = useState('');
     const [ticketFilter, setTicketFilter] = useState('');
@@ -1416,10 +1421,16 @@ function Dashboard({ adminToken, adminEmail, onLogout }) {
 
     const handleMutate = (userId) => {
         fetchOverview();
+        setUsersRefreshNonce((value) => value + 1);
         if (userId) {
             setSelectedUserId(userId);
             setDetailRefreshNonce((value) => value + 1);
         }
+    };
+
+    const handleUserDetailRefresh = () => {
+        fetchOverview();
+        setUsersRefreshNonce((value) => value + 1);
     };
 
     const handleStatClick = (tab, statId) => {
@@ -1508,6 +1519,7 @@ function Dashboard({ adminToken, adminEmail, onLogout }) {
                             selectedUserId={selectedUserId}
                             onSelectUser={setSelectedUserId}
                             initialFilter={userFilter}
+                            refreshNonce={usersRefreshNonce}
                         />
                     )}
                     {activeTab === 'appeals' && (
@@ -1541,6 +1553,7 @@ function Dashboard({ adminToken, adminEmail, onLogout }) {
                         adminToken={adminToken}
                         selectedUserId={selectedUserId}
                         refreshNonce={detailRefreshNonce}
+                        onRefreshComplete={handleUserDetailRefresh}
                     />
                 </aside>
             </div>
