@@ -1057,11 +1057,6 @@ function AdminLogsModal({ adminToken, onClose }) {
         fetchLogs();
     }, [adminToken]);
 
-    const formatDetails = (details) => {
-        if (!details || Object.keys(details).length === 0) return '-';
-        return JSON.stringify(details, null, 2);
-    };
-
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
@@ -1080,13 +1075,12 @@ function AdminLogsModal({ adminToken, onClose }) {
                                         <th>Admin</th>
                                         <th>Action</th>
                                         <th>Target</th>
-                                        <th>Details</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {logs.length === 0 ? (
                                         <tr>
-                                            <td colSpan="5" className="empty-state">No admin actions logged yet.</td>
+                                            <td colSpan="4" className="empty-state">No admin actions logged yet.</td>
                                         </tr>
                                     ) : logs.map((log) => (
                                         <tr key={log.id}>
@@ -1094,7 +1088,6 @@ function AdminLogsModal({ adminToken, onClose }) {
                                             <td><strong>{log.admin_email}</strong></td>
                                             <td><span className={`status-badge status-${statusClassName(log.action)}`}>{log.action}</span></td>
                                             <td>{log.target_username ? `User: ${log.target_username}` : log.target_user_id ? `User ID: ${log.target_user_id}` : '-'}</td>
-                                            <td><pre className="log-details">{formatDetails(log.details)}</pre></td>
                                         </tr>
                                     ))}
                                 </tbody>
