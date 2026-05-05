@@ -1033,6 +1033,84 @@ class ErrorBoundary extends React.Component {
     }
 }
 
+function AdminLogsModal({ adminToken, onClose }) {
+    const [logs, setLogs] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const fetchLogs = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.get(`${API_BASE_URL}/admin/activity-logs`, {
+                headers: buildAdminHeaders(adminToken)
+            });
+            setLogs(response.data);
+            setError('');
+        } catch (err) {
+            setError('Failed to fetch admin logs');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchLogs();
+    }, [adminToken]);
+
+    const formatDetails = (details) => {
+        if (!details || Object.keys(details).length === 0) return '-';
+        return JSON.stringify(details, null, 2);
+    };
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h3>Admin Action Logs</h3>
+                    <button type="button" className="close-button" onClick={onClose}>×</button>
+                </div>
+                <div className="modal-body">
+                    {error && <div className="alert alert-error">{error}</div>}
+                    {loading ? <div className="loading">Loading logs...</div> : (
+                        <div className="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Admin</th>
+                                        <th>Action</th>
+                                        <th>Target</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {logs.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="5" className="empty-state">No admin actions logged yet.</td>
+                                        </tr>
+                                    ) : logs.map((log) => (
+                                        <tr key={log.id}>
+                                            <td>{formatDate(log.created_at)}</td>
+                                            <td><strong>{log.admin_email}</strong></td>
+                                            <td><span className={`status-badge status-${statusClassName(log.action)}`}>{log.action}</span></td>
+                                            <td>{log.target_username ? `User: ${log.target_username}` : log.target_user_id ? `User ID: ${log.target_user_id}` : '-'}</td>
+                                            <td><pre className="log-details">{formatDetails(log.details)}</pre></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+                <div className="modal-footer">
+                    <button type="button" className="btn-secondary" onClick={onClose}>Close</button>
+                    <button type="button" className="btn-primary" onClick={fetchLogs}>Refresh</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshComplete }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -1261,6 +1339,7 @@ function Dashboard({ adminToken, adminEmail, onLogout }) {
     const [userFilter, setUserFilter] = useState('');
     const [appealFilter, setAppealFilter] = useState('');
     const [ticketFilter, setTicketFilter] = useState('');
+    const [showAdminLogs, setShowAdminLogs] = useState(false);
 
     const fetchOverview = async () => {
         try {
@@ -1310,13 +1389,23 @@ function Dashboard({ adminToken, adminEmail, onLogout }) {
                     <p>Dynamic player monitoring, moderation, and game-state verification.</p>
                     {adminEmail ? <small>Signed in as {adminEmail}</small> : null}
                 </div>
-                <button
-                    type="button"
-                    onClick={onLogout}
-                    className="logout-button"
-                >
-                    Logout
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                        type="button"
+                        onClick={() => setShowAdminLogs(true)}
+                        className="btn-secondary"
+                        style={{ height: 'fit-content' }}
+                    >
+                        Admin Action Logs
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onLogout}
+                        className="logout-button"
+                    >
+                        Logout
+                    </button>
+                </div>
             </header>
 
             {overviewError && <div className="alert alert-error">{overviewError}</div>}
@@ -1401,6 +1490,13 @@ function Dashboard({ adminToken, adminEmail, onLogout }) {
                     />
                 </aside>
             </div>
+
+            {showAdminLogs && (
+                <AdminLogsModal 
+                    adminToken={adminToken} 
+                    onClose={() => setShowAdminLogs(false)} 
+                />
+            )}
         </div>
     );
 }

@@ -4,7 +4,6 @@ import 'package:tap_n_match/core/persistence_service.dart';
 import 'package:tap_n_match/core/soundmanager.dart';
 import 'package:tap_n_match/repository/auth_repository.dart';
 import 'package:tap_n_match/infrastructure/firebase_auth_repository.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginPage extends StatefulWidget {
   final AuthRepository authRepository;
@@ -71,12 +70,12 @@ class _LoginPageState extends State<LoginPage> {
     }
     setState(() => _isSendingCode = true);
     
-    // In Hybrid Mode, we still notify the backend about the email
+    // In Hybrid Mode, we still notify the backend about the email to get a code
     final success = await widget.authRepository.sendVerificationCode(email);
     
     if (success) {
-      _showMsg("Ready for Firebase Auth!", isError: false);
-      setState(() => _currentStep = 3);
+      _showMsg("Verification code sent to Gmail!", isError: false);
+      setState(() => _currentStep = 3); // Move to code entry
     } else {
       _showMsg("Failed to connect to Server", isError: true);
     }
@@ -108,31 +107,23 @@ class _LoginPageState extends State<LoginPage> {
 
       response = await widget.authRepository.login(username, password);
     } else {
-      // GMAIL LOGIN VIA FIREBASE
+      // GMAIL LOGIN VIA CUSTOM CODE (For recovery/forgot password)
       final email = _emailController.text.trim();
-      final password = _passwordController.text.trim();
+      final code = _codeController.text.trim();
       
       try {
-        // 1. Authenticate with Firebase (Teacher Requirement)
-        final firebaseResponse = await widget.firebaseAuthRepository.login(email, password);
-        
-        if (firebaseResponse.status == AuthStatus.success) {
-          // 2. Link/Sync with SQLite Backend using Firebase UID
-          final firebaseUid = FirebaseAuth.instance.currentUser?.uid;
-          response = await widget.authRepository.loginWithCode(
-            email, 
-            "FIREBASE_AUTH", // Signal code
-            firebaseUid: firebaseUid,
-          );
-        } else {
-          response = firebaseResponse;
-        }
+        // We skip Firebase Auth here because the user might have forgotten their password.
+        // The identity is verified via the 6-digit code sent to their Gmail.
+        response = await widget.authRepository.loginWithCode(
+          email, 
+          code,
+        );
       } catch (e) {
-        response = AuthResponse.error("Firebase Auth Error: $e");
+        response = AuthResponse.error("Login Error: $e");
       }
     }
 
-    if (response.status == AuthStatus.success) {
+    if (response.status == AuthStatus.success || response.status == AuthStatus.banned) {
       await PersistenceService.saveUserId(response.userId!);
       await PersistenceService.saveUsername(response.username!);
       
@@ -140,13 +131,6 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.of(context).pushReplacementNamed(
           '/menu',
           arguments: {'user_id': response.userId},
-        );
-      }
-    } else if (response.status == AuthStatus.banned) {
-      if (mounted) {
-        Navigator.of(context).pushNamed(
-          '/banned',
-          arguments: {'reason': response.banReason},
         );
       }
     } else {
@@ -267,7 +251,7 @@ class _LoginPageState extends State<LoginPage> {
     switch (_currentStep) {
       case 1: return 'Login Method';
       case 2: return _selectedMethod == LoginMethod.traditional ? 'Enter Username' : 'Enter Gmail';
-      case 3: return 'Enter Password';
+      case 3: return _selectedMethod == LoginMethod.traditional ? 'Enter Password' : 'Verify Code';
       default: return '';
     }
   }
@@ -458,64 +442,119 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildStep3() {
-    return Column(
-      children: [
-        if (_selectedMethod == LoginMethod.gmail)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              'Sign in with Firebase for ${_emailController.text}',
-              style: GoogleFonts.pixelifySans(fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
+    if (_selectedMethod == LoginMethod.traditional) {
+      return Column(
+        children: [
+          TextField(
+            controller: _passwordController, 
+            obscureText: true, 
+            decoration: _pixelInput('Password'),
+            onSubmitted: (_) => _handleLogin(),
           ),
-        TextField(
-          controller: _passwordController, 
-          obscureText: true, 
-          decoration: _pixelInput('Password'),
-          onSubmitted: (_) => _handleLogin(),
-        ),
-        const SizedBox(height: 20),
-        _isLoading 
-          ? const CircularProgressIndicator(color: Colors.black)
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 100,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.black, width: 2),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+          const SizedBox(height: 20),
+          _isLoading 
+            ? const CircularProgressIndicator(color: Colors.black)
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.black, width: 2),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      onPressed: () {
+                        soundManager.playTap();
+                        setState(() => _currentStep = 2);
+                      },
+                      child: Text('BACK', style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 13)),
                     ),
-                    onPressed: () {
-                      soundManager.playTap();
-                      setState(() => _currentStep = 2);
-                    },
-                    child: Text('BACK', style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 13)),
                   ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 140, 
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 140, 
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                      onPressed: () {
+                        soundManager.playTap();
+                        _handleLogin();
+                      },
+                      child: Text('LOGIN', 
+                        style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
                     ),
-                    onPressed: () {
-                      soundManager.playTap();
-                      _handleLogin();
-                    },
-                    child: Text('LOGIN', 
-                      style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
                   ),
+                ],
+              ),
+        ],
+      );
+    } else {
+      return Column(
+        children: [
+          Text(
+            'We sent a code to ${_emailController.text}',
+            style: GoogleFonts.pixelifySans(fontSize: 12),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _codeController,
+            textAlign: TextAlign.center,
+            maxLength: 6,
+            keyboardType: TextInputType.number,
+            style: GoogleFonts.pixelifySans(fontSize: 18, letterSpacing: 4),
+            decoration: _pixelInput('000000'),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 100,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.black, width: 2),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  onPressed: () {
+                    soundManager.playTap();
+                    setState(() => _currentStep = 2);
+                  },
+                  child: Text('BACK', style: GoogleFonts.pixelifySans(color: Colors.black, fontSize: 13)),
                 ),
-              ],
-            ),
-      ],
-    );
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 140,
+                child: _isLoading 
+                  ? const Center(child: CircularProgressIndicator(color: Colors.black))
+                  : ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                      onPressed: () {
+                        soundManager.playTap();
+                        if (_codeController.text.length == 6) {
+                          _handleLogin();
+                        } else {
+                          _showMsg("Enter 6-digit code", isError: true);
+                        }
+                      },
+                      child: Text('LOGIN', style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
+                    ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
   }
 }

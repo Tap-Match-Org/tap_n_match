@@ -499,6 +499,7 @@ def init_db():
             colorblind_mode INTEGER DEFAULT 0,
             is_banned INTEGER DEFAULT 0,
             ban_reason TEXT,
+            firebase_uid TEXT,
             claimed_rewards TEXT DEFAULT '',
             seen_rewards TEXT DEFAULT '',
             tutorial_enabled INTEGER DEFAULT 0,
@@ -553,6 +554,17 @@ def init_db():
             created_at TEXT NOT NULL
         )
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS admin_activity_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_email TEXT NOT NULL,
+            action TEXT NOT NULL,
+            details TEXT DEFAULT '{}',
+            target_user_id INTEGER,
+            created_at TEXT NOT NULL
+        )
+    """)
     
     # Try adding new columns to existing DBs safely
     columns_to_add = [
@@ -587,6 +599,7 @@ def init_db():
         ("colorblind_mode", "INTEGER DEFAULT 0"),
         ("is_banned", "INTEGER DEFAULT 0"),
         ("ban_reason", "TEXT"),
+        ("firebase_uid", "TEXT"),
         ("claimed_rewards", "TEXT DEFAULT ''"),
         ("seen_rewards", "TEXT DEFAULT ''"),
         ("tutorial_enabled", "INTEGER DEFAULT 0"),
@@ -735,6 +748,29 @@ def parse_json(raw_value: str | None) -> dict:
     except json.JSONDecodeError:
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def log_admin_activity(
+    cursor: sqlite3.Cursor,
+    admin_email: str,
+    action: str,
+    details: dict | None = None,
+    target_user_id: int | None = None,
+) -> None:
+    timestamp = current_timestamp()
+    cursor.execute(
+        """
+        INSERT INTO admin_activity_logs (admin_email, action, details, target_user_id, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            admin_email,
+            action,
+            json.dumps(details or {}, separators=(",", ":"), ensure_ascii=True),
+            target_user_id,
+            timestamp,
+        ),
+    )
 
 
 def log_player_activity(
@@ -1055,12 +1091,46 @@ async def admin_login(request: AdminLoginRequest):
         "email": email,
         "expires_at": datetime.now() + timedelta(hours=ADMIN_SESSION_TTL_HOURS),
     }
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    log_admin_activity(cursor, email, "login", {"method": "gmail_code"})
+    conn.commit()
+    conn.close()
     return {
         "message": "Admin login successful",
         "token": token,
         "email": email,
         "expires_at": admin_sessions[token]["expires_at"].isoformat(timespec="seconds"),
     }
+
+
+@app.get("/admin/activity-logs", dependencies=[Depends(verify_admin)])
+async def get_admin_activity_logs():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    logs = cursor.execute(
+        """
+        SELECT 
+            al.id, al.admin_email, al.action, al.details, al.target_user_id, al.created_at,
+            u.username AS target_username
+        FROM admin_activity_logs al
+        LEFT JOIN users u ON u.id = al.target_user_id
+        ORDER BY al.created_at DESC, al.id DESC
+        """
+    ).fetchall()
+    conn.close()
+    return [
+        {
+            "id": row["id"],
+            "admin_email": row["admin_email"],
+            "action": row["action"],
+            "details": parse_json(row["details"]),
+            "target_user_id": row["target_user_id"],
+            "target_username": row["target_username"],
+            "created_at": row["created_at"],
+        }
+        for row in logs
+    ]
 
 
 @app.post("/admin/logout")
@@ -1071,6 +1141,11 @@ async def admin_logout(admin_session = Depends(verify_admin), authorization: str
         if scheme.lower() == "bearer" and value:
             token = value.strip()
     if token:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        log_admin_activity(cursor, admin_session.get("email"), "logout", {"token_suffix": token[-8:]})
+        conn.commit()
+        conn.close()
         admin_sessions.pop(token, None)
     return {"message": "Admin logout successful", "email": admin_session.get("email")}
 
@@ -2331,7 +2406,7 @@ class AdjustPointsRequest(BaseModel):
     lifetime_points: int
 
 @app.post("/admin/users/{user_id}/adjust-points", dependencies=[Depends(verify_admin)])
-async def adjust_points(user_id: int, request: AdjustPointsRequest):
+async def adjust_points(user_id: int, request: AdjustPointsRequest, admin_session = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
     user = cursor.execute(
@@ -2356,12 +2431,22 @@ async def adjust_points(user_id: int, request: AdjustPointsRequest):
             "after_lifetime_points": request.lifetime_points,
         },
     )
+    log_admin_activity(
+        cursor,
+        admin_session.get("email"),
+        "adjust_points",
+        {
+            "before": {"banked": user["banked_points"], "lifetime": user["lifetime_points"]},
+            "after": {"banked": request.banked_points, "lifetime": request.lifetime_points},
+        },
+        user_id,
+    )
     conn.commit()
     conn.close()
     return {"message": f"Points for user {user_id} adjusted successfully."}
 
 @app.post("/admin/users/{user_id}/reset", dependencies=[Depends(verify_admin)])
-async def admin_reset_user(user_id: int):
+async def admin_reset_user(user_id: int, admin_session = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -2386,6 +2471,7 @@ async def admin_reset_user(user_id: int):
         "Admin reset the player's progress.",
         {},
     )
+    log_admin_activity(cursor, admin_session.get("email"), "reset_user_progress", {}, user_id)
     
     conn.commit()
     conn.close()
@@ -2395,7 +2481,7 @@ class BanRequest(BaseModel):
     reason: str
 
 @app.put("/admin/users/{user_id}/ban", dependencies=[Depends(verify_admin)])
-async def ban_user(user_id: int, request: BanRequest):
+async def ban_user(user_id: int, request: BanRequest, admin_session = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", (request.reason, user_id))
@@ -2406,12 +2492,13 @@ async def ban_user(user_id: int, request: BanRequest):
         "Admin banned the player.",
         {"reason": request.reason},
     )
+    log_admin_activity(cursor, admin_session.get("email"), "ban_user", {"reason": request.reason}, user_id)
     conn.commit()
     conn.close()
     return {"message": f"User {user_id} banned successfully."}
 
 @app.put("/admin/users/{user_id}/unban", dependencies=[Depends(verify_admin)])
-async def unban_user(user_id: int):
+async def unban_user(user_id: int, admin_session = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET is_banned = 0, ban_reason = NULL WHERE id = ?", (user_id,))
@@ -2422,6 +2509,7 @@ async def unban_user(user_id: int):
         "Admin removed the player's ban.",
         {},
     )
+    log_admin_activity(cursor, admin_session.get("email"), "unban_user", {}, user_id)
     conn.commit()
     conn.close()
     return {"message": f"User {user_id} unbanned successfully."}
@@ -2466,10 +2554,21 @@ async def get_appeals():
     ]
 
 @app.put("/admin/appeals/{appeal_id}", dependencies=[Depends(verify_admin)])
-async def update_appeal_status(appeal_id: int, status: str):
+async def update_appeal_status(appeal_id: int, status: str, admin_session = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Get user_id for logging
+    appeal = cursor.execute("SELECT user_id FROM appeals WHERE id = ?", (appeal_id,)).fetchone()
+    user_id = appeal["user_id"] if appeal else None
+    
     cursor.execute("UPDATE appeals SET status = ? WHERE id = ?", (status, appeal_id))
+    log_admin_activity(
+        cursor,
+        admin_session.get("email"),
+        "update_appeal_status",
+        {"status": status, "appeal_id": appeal_id},
+        user_id,
+    )
     conn.commit()
     conn.close()
     return {"message": f"Appeal {appeal_id} status updated to {status}."}
@@ -2515,13 +2614,25 @@ async def get_reports():
     ]
 
 @app.put("/admin/reports/{report_id}", dependencies=[Depends(verify_admin)])
-async def update_report_status(report_id: int, status: str):
+async def update_report_status(report_id: int, status: str, admin_session = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Get reported_id for logging
+    report = cursor.execute("SELECT reported_id FROM reports WHERE id = ?", (report_id,)).fetchone()
+    user_id = report["reported_id"] if report else None
+
     cursor.execute("UPDATE reports SET status = ? WHERE id = ?", (status, report_id))
+    log_admin_activity(
+        cursor,
+        admin_session.get("email"),
+        "update_report_status",
+        {"status": status, "report_id": report_id},
+        user_id,
+    )
     conn.commit()
     conn.close()
     return {"message": f"Report {report_id} status updated to {status}."}
+
 
 class SupportTicketRequest(BaseModel):
     user_id: int
@@ -2564,10 +2675,21 @@ async def get_support_tickets():
     ]
 
 @app.put("/admin/support/tickets/{ticket_id}", dependencies=[Depends(verify_admin)])
-async def update_support_ticket_status(ticket_id: int, status: str):
+async def update_support_ticket_status(ticket_id: int, status: str, admin_session = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Get user_id for logging
+    ticket = cursor.execute("SELECT user_id FROM support_tickets WHERE id = ?", (ticket_id,)).fetchone()
+    user_id = ticket["user_id"] if ticket else None
+
     cursor.execute("UPDATE support_tickets SET status = ? WHERE id = ?", (status, ticket_id))
+    log_admin_activity(
+        cursor,
+        admin_session.get("email"),
+        "update_ticket_status",
+        {"status": status, "ticket_id": ticket_id},
+        user_id,
+    )
     conn.commit()
     conn.close()
     return {"message": f"Support ticket {ticket_id} status updated to {status}."}

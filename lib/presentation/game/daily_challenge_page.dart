@@ -555,25 +555,65 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
     );
   }
 
+  Future<void> _showExitConfirmation() async {
+    _timer?.cancel(); // Pause timer while dialog is open
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFFB2B9D1),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Colors.black, width: 3)),
+        title: Text("QUIT CHALLENGE?",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold)),
+        content: Text("Your progress in this challenge will be lost!",
+            textAlign: TextAlign.center, style: GoogleFonts.pixelifySans()),
+        actions: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildButton("No", () {
+                Navigator.pop(ctx);
+                if (!_isGameOver) _startTimer();
+              }),
+              _buildButton("Yes", () {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+              }),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: buildThemeDecoration(
-          _challengeBackground.isNotEmpty ? _challengeBackground : selectedTheme,
-          radial: false,
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          opacityStart: 0.8,
-          opacityEnd: 0.5,
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              left: 20,
-              top: 20,
-              child: _buildButton("Quit", () => Navigator.pop(context)),
-            ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        _showExitConfirmation();
+      },
+      child: Scaffold(
+        body: Container(
+          decoration: buildThemeDecoration(
+            _challengeBackground.isNotEmpty ? _challengeBackground : selectedTheme,
+            radial: false,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            opacityStart: 0.8,
+            opacityEnd: 0.5,
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 20,
+                top: 20,
+                child: _buildButton("Quit", _showExitConfirmation),
+              ),
             Center(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -606,8 +646,9 @@ class _DailyChallengePageState extends State<DailyChallengePage> with TickerProv
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildCenterUI() {
     return Column(

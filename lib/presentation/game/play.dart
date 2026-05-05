@@ -1077,8 +1077,14 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final config = _getDifficultyConfig(currentLevel);
 
-    return Scaffold(
-      body: Container(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        _showExitConfirmation();
+      },
+      child: Scaffold(
+        body: Container(
         decoration: buildThemeDecoration(
           selectedTheme,
           radial: false,
@@ -1122,8 +1128,9 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildGameContent(_DifficultyConfig config) {
     return Stack(

@@ -37,6 +37,8 @@ class _MainMenuPageState extends State<MainMenuPage>
   bool _tutorialQueued = false;
   int _tutorialStepIndex = 0;
   String? _activeTutorialId;
+  bool isBanned = false;
+  String banReason = '';
   final GlobalKey _playButtonKey = GlobalKey();
   final GlobalKey _dailyChallengePanelKey = GlobalKey();
   final GlobalKey _dailyChallengeButtonKey = GlobalKey();
@@ -74,18 +76,9 @@ class _MainMenuPageState extends State<MainMenuPage>
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         
-        if (data['is_banned'] == 1 || data['is_banned'] == true) {
-          if (mounted) {
-            Navigator.of(context).pushNamedAndRemoveUntil(
-              '/banned', 
-              (route) => false,
-              arguments: {'reason': data['ban_reason']},
-            );
-          }
-          return;
-        }
-
         setState(() {
+          isBanned = data['is_banned'] == 1 || data['is_banned'] == true;
+          banReason = data['ban_reason'] ?? '';
           userStreak = data['streak'] ?? 0;
           completedDailyChallenges = data['completed_daily_challenges'] ?? 0;
           isNewbie = completedDailyChallenges < 7;
@@ -526,6 +519,12 @@ class _MainMenuPageState extends State<MainMenuPage>
 
   Future<void> _openSidebarRoute(String route) async {
     soundManager.playTap();
+    
+    if (isBanned && (route == '/shop' || route == '/theme')) {
+      _showBannedLockedMsg();
+      return;
+    }
+
     await Navigator.of(context).pushNamed(
       route,
       arguments: {'user_id': userId},
@@ -643,7 +642,7 @@ class _MainMenuPageState extends State<MainMenuPage>
         final gradient = LinearGradient(
           begin: Alignment(-1 + gradientShift * 0.4, -1),
           end: Alignment(1, 1 - gradientShift * 0.35),
-          colors: [
+          colors: isBanned ? [Colors.grey.shade400, Colors.grey.shade600] : [
             Color.lerp(themeColor, const Color(0xFF8BD7FF), progress) ?? themeColor,
             Color.lerp(const Color(0xFFFCA016), const Color(0xFFFFE8A3), 1 - progress) ??
                 const Color(0xFFFCA016),
@@ -654,7 +653,7 @@ class _MainMenuPageState extends State<MainMenuPage>
           scale: pulse,
           child: GestureDetector(
             key: tutorialKey,
-            onTap: onTap,
+            onTap: isBanned ? () => _showBannedLockedMsg() : onTap,
             child: Container(
               width: isLandscape ? 220 : 210,
               margin: EdgeInsets.symmetric(vertical: isLandscape ? 4 : 8),
@@ -663,12 +662,12 @@ class _MainMenuPageState extends State<MainMenuPage>
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFCA016).withOpacity(0.24),
+                    color: (isBanned ? Colors.grey : const Color(0xFFFCA016)).withOpacity(0.24),
                     blurRadius: 12,
                     offset: const Offset(0, 6),
                   ),
                   BoxShadow(
-                    color: themeColor.withOpacity(0.16),
+                    color: (isBanned ? Colors.grey : themeColor).withOpacity(0.16),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
@@ -705,8 +704,8 @@ class _MainMenuPageState extends State<MainMenuPage>
                                 ),
                               ],
                             ),
-                            child: const Icon(
-                              Icons.play_arrow_rounded,
+                            child: Icon(
+                              isBanned ? Icons.lock_outline_rounded : Icons.play_arrow_rounded,
                               color: Colors.black,
                               size: 26,
                             ),
@@ -717,7 +716,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'PLAY',
+                                isBanned ? 'LOCKED' : 'PLAY',
                                 style: GoogleFonts.pixelifySans(
                                   fontSize: isLandscape ? 20 : 21,
                                   fontWeight: FontWeight.bold,
@@ -728,7 +727,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                                 ),
                               ),
                               Text(
-                                'Start the match',
+                                isBanned ? 'Account Restricted' : 'Start the match',
                                 style: GoogleFonts.pixelifySans(
                                   fontSize: isLandscape ? 9 : 10,
                                   fontWeight: FontWeight.w700,
@@ -740,6 +739,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                         ],
                       ),
                     ),
+                    if (!isBanned)
                     Positioned.fill(
                       child: IgnorePointer(
                         child: ClipRRect(
@@ -773,6 +773,19 @@ class _MainMenuPageState extends State<MainMenuPage>
           ),
         );
       },
+    );
+  }
+
+  void _showBannedLockedMsg() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          "Access Restricted: This feature is unavailable due to account ban.",
+          style: GoogleFonts.pixelifySans(fontSize: 12),
+        ),
+        backgroundColor: Colors.redAccent,
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
@@ -885,6 +898,20 @@ class _MainMenuPageState extends State<MainMenuPage>
                             children: [
                               Icon(icon, color: Colors.black.withOpacity(0.60), size: iconSize + 2),
                               Icon(icon, color: Colors.white, size: iconSize),
+                              if (isBanned && (route == '/shop' || route == '/theme'))
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.4),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.lock_outline_rounded,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -930,6 +957,58 @@ class _MainMenuPageState extends State<MainMenuPage>
     );
   }
 
+  Future<void> _showExitConfirmation() async {
+    return showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFFB2B9D1),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Colors.black, width: 3)),
+        title: Text("EXIT GAME?",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold)),
+        content: Text("Are you sure you want to exit the application?",
+            textAlign: TextAlign.center, style: GoogleFonts.pixelifySans()),
+        actions: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildDialogButton("No", () {
+                Navigator.pop(ctx);
+              }),
+              _buildDialogButton("Yes", () {
+                if (Platform.isAndroid) {
+                  SystemNavigator.pop();
+                } else {
+                  exit(0);
+                }
+              }),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDialogButton(String text, VoidCallback onTap) {
+    return ElevatedButton(
+      onPressed: () {
+        soundManager.playTap();
+        onTap();
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        side: const BorderSide(color: Colors.black, width: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      ),
+      child: Text(text,
+          style: GoogleFonts.pixelifySans(
+              color: Colors.black, fontWeight: FontWeight.bold)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final double screenHeight = MediaQuery.of(context).size.height;
@@ -938,8 +1017,14 @@ class _MainMenuPageState extends State<MainMenuPage>
 
     final themeColor = parseThemeColor(selectedTheme);
 
-    return Scaffold(
-      body: Container(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        _showExitConfirmation();
+      },
+      child: Scaffold(
+        body: Container(
         width: double.infinity,
         height: double.infinity,
         decoration: buildThemeDecoration(selectedTheme),
@@ -1074,122 +1159,163 @@ class _MainMenuPageState extends State<MainMenuPage>
                       ),
                       Padding(
                         padding: const EdgeInsets.all(8),
-                        child: !_isChallengeAvailable
+                        child: isBanned
                             ? Column(
                                 mainAxisSize: MainAxisSize.min,
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
+                                  const SizedBox(height: 10),
                                   Container(
                                     width: 36,
                                     height: 36,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: isNewbie ? const Color(0xFF98EE99) : Colors.grey.shade400,
+                                      color: Colors.red.shade400,
                                       border: Border.all(color: Colors.black, width: 2),
                                     ),
-                                    child: Icon(
-                                      isNewbie ? Icons.check_rounded : Icons.timer_outlined,
+                                    child: const Icon(
+                                      Icons.lock_outline_rounded,
                                       color: Colors.black,
                                       size: 22,
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 12),
                                   Text(
-                                    isNewbie ? 'Completed today' : 'Weekly Challenge',
+                                    'LOCKED',
                                     textAlign: TextAlign.center,
                                     style: GoogleFonts.pixelifySans(
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 11,
+                                      fontSize: 13,
+                                      color: Colors.red.shade700,
                                     ),
                                   ),
-                                  const SizedBox(height: 3),
+                                  const SizedBox(height: 4),
                                   Text(
-                                    isNewbie 
-                                      ? 'Come back tomorrow' 
-                                      : 'Available in $_daysUntilNextChallenge day${_daysUntilNextChallenge == 1 ? '' : 's'}',
+                                    'Account restricted',
                                     textAlign: TextAlign.center,
                                     style: GoogleFonts.pixelifySans(
-                                      fontSize: 8,
-                                      color: Colors.black87,
+                                      fontSize: 9,
+                                      color: Colors.black54,
                                     ),
                                   ),
                                 ],
                               )
-                            : Column(
-                                mainAxisSize: MainAxisSize.min,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Current reward',
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.pixelifySans(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: _getCurrentReward().containsKey("color")
-                                          ? Color(int.parse(_getCurrentReward()["color"].replaceFirst('#', '0xFF')))
-                                          : Colors.grey[300],
-                                      image: _getCurrentReward().containsKey("asset")
-                                          ? DecorationImage(
-                                              image: AssetImage(_getCurrentReward()["asset"]),
-                                              fit: BoxFit.cover,
-                                            )
-                                          : null,
-                                      borderRadius: BorderRadius.circular(9),
-                                      border: Border.all(color: Colors.black, width: 2),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _getCurrentReward()["name"],
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.pixelifySans(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  GestureDetector(
-                                    onTap: () async {
-                                      soundManager.playTap();
-                                      await Navigator.of(context).pushNamed(
-                                        '/daily_challenge',
-                                        arguments: {
-                                          'user_id': userId,
-                                          'streak': userStreak,
-                                          'completedChallenges': completedDailyChallenges,
-                                        },
-                                      );
-                                      _loadUserData();
-                                    },
-                                    child: Container(
-                                      key: _dailyChallengeButtonKey,
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF6F8FC),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: const Color.fromARGB(86, 0, 0, 0), width: 1.4),
-                                      ),
-                                      child: Text(
-                                        'Play Now',
-                                        textAlign: TextAlign.center,
-                                        style: GoogleFonts.pixelifySans(
+                            : !_isChallengeAvailable
+                                ? Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: isNewbie ? const Color(0xFF98EE99) : Colors.grey.shade400,
+                                          border: Border.all(color: Colors.black, width: 2),
+                                        ),
+                                        child: Icon(
+                                          isNewbie ? Icons.check_rounded : Icons.timer_outlined,
                                           color: Colors.black,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
+                                          size: 22,
                                         ),
                                       ),
-                                    ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        isNewbie ? 'Completed today' : 'Weekly Challenge',
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.pixelifySans(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        isNewbie 
+                                          ? 'Come back tomorrow' 
+                                          : 'Available in $_daysUntilNextChallenge day${_daysUntilNextChallenge == 1 ? '' : 's'}',
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.pixelifySans(
+                                          fontSize: 8,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Current reward',
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.pixelifySans(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: _getCurrentReward().containsKey("color")
+                                              ? Color(int.parse(_getCurrentReward()["color"].replaceFirst('#', '0xFF')))
+                                              : Colors.grey[300],
+                                          image: _getCurrentReward().containsKey("asset")
+                                              ? DecorationImage(
+                                                  image: AssetImage(_getCurrentReward()["asset"]),
+                                                  fit: BoxFit.cover,
+                                                )
+                                              : null,
+                                          borderRadius: BorderRadius.circular(9),
+                                          border: Border.all(color: Colors.black, width: 2),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _getCurrentReward()["name"],
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.pixelifySans(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      GestureDetector(
+                                        onTap: () async {
+                                          soundManager.playTap();
+                                          await Navigator.of(context).pushNamed(
+                                            '/daily_challenge',
+                                            arguments: {
+                                              'user_id': userId,
+                                              'streak': userStreak,
+                                              'completedChallenges': completedDailyChallenges,
+                                            },
+                                          );
+                                          _loadUserData();
+                                        },
+                                        child: Container(
+                                          key: _dailyChallengeButtonKey,
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF6F8FC),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: const Color.fromARGB(86, 0, 0, 0), width: 1.4),
+                                          ),
+                                          child: Text(
+                                            'Play Now',
+                                            textAlign: TextAlign.center,
+                                            style: GoogleFonts.pixelifySans(
+                                              color: Colors.black,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
                       ),
                     ],
                   ),
@@ -1225,14 +1351,7 @@ class _MainMenuPageState extends State<MainMenuPage>
                     ),
                     _buildExitButton(
                       isLandscape: isLandscape,
-                      onTap: () {
-                        soundManager.playTap();
-                        if (Platform.isAndroid) {
-                          SystemNavigator.pop();
-                        } else if (Platform.isIOS) {
-                          exit(0);
-                        }
-                      },
+                      onTap: _showExitConfirmation,
                     ),
                   ],
                 ),
@@ -1277,6 +1396,37 @@ class _MainMenuPageState extends State<MainMenuPage>
                 ),
               ),
             ),
+            if (isBanned)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+                  color: Colors.red.withOpacity(0.9),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'ACCOUNT BANNED: $banReason',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.pixelifySans(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             if (_showTutorial)
               GuidedTutorialOverlay(
                 steps: _tutorialSteps,
@@ -1289,8 +1439,9 @@ class _MainMenuPageState extends State<MainMenuPage>
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildTitleText(String text, double size, Color color) {
     return Stack(

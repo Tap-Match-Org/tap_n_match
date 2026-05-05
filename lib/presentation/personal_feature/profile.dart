@@ -90,17 +90,6 @@ class _ProfilePageState extends State<ProfilePage> {
       Map<String, dynamic>? userData;
       if (userResponse.statusCode == 200) {
         userData = jsonDecode(userResponse.body) as Map<String, dynamic>;
-
-        if (userData['is_banned'] == 1 || userData['is_banned'] == true) {
-          if (mounted) {
-            Navigator.of(context).pushNamedAndRemoveUntil(
-              '/banned',
-              (route) => false,
-              arguments: {'reason': userData['ban_reason']},
-            );
-          }
-          return;
-        }
       }
 
       List<Map<String, dynamic>> players = [];
