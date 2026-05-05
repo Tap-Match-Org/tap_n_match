@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
@@ -26,7 +26,8 @@ class _BugReportPageState extends State<BugReportPage> {
   bool _isLoading = false;
   String? _errorMessage;
   String? _successMessage;
-  File? _selectedFile;
+  Uint8List? _selectedImageBytes;
+  String? _selectedImageName;
 
   @override
   void initState() {
@@ -44,11 +45,23 @@ class _BugReportPageState extends State<BugReportPage> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.image,
+        allowMultiple: false,
+        withData: true,
       );
 
-      if (result != null && result.files.single.path != null) {
+      final file = result?.files.single;
+      final bytes = file?.bytes;
+
+      if (file != null && bytes != null && bytes.isNotEmpty) {
+        const maxBytes = 2 * 1024 * 1024;
+        if (bytes.lengthInBytes > maxBytes) {
+          setState(() => _errorMessage = 'Pick an image smaller than 2 MB.');
+          return;
+        }
+
         setState(() {
-          _selectedFile = File(result.files.single.path!);
+          _selectedImageBytes = bytes;
+          _selectedImageName = file.name;
           _errorMessage = null;
         });
       }
@@ -65,18 +78,15 @@ class _BugReportPageState extends State<BugReportPage> {
 
     setState(() => _isLoading = true);
     try {
-      String bugDescription = _descriptionController.text;
-      if (_selectedFile != null) {
-        bugDescription += '\n[Image attached: ${_selectedFile!.path.split('/').last}]';
-      }
-
       final response = await http.post(
         ApiConfig.getUri('/support/tickets'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,
           'type': 'bug',
-          'message': bugDescription,
+          'message': _descriptionController.text.trim(),
+          'screenshot_base64': _selectedImageBytes == null ? null : base64Encode(_selectedImageBytes!),
+          'screenshot_filename': _selectedImageName,
         }),
       );
 
@@ -84,7 +94,8 @@ class _BugReportPageState extends State<BugReportPage> {
         setState(() {
           _successMessage = 'Bug report submitted successfully!';
           _descriptionController.clear();
-          _selectedFile = null;
+          _selectedImageBytes = null;
+          _selectedImageName = null;
           _errorMessage = null;
         });
         Future.delayed(const Duration(seconds: 2), () { if (mounted) Navigator.pop(context); });
@@ -219,15 +230,15 @@ class _BugReportPageState extends State<BugReportPage> {
                             color: Colors.blue.shade50,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.blue, width: 2, style: BorderStyle.solid),
-                            image: _selectedFile == null
+                            image: _selectedImageBytes == null
                                 ? null
                                 : DecorationImage(
-                                    image: FileImage(_selectedFile!),
+                                    image: MemoryImage(_selectedImageBytes!),
                                     fit: BoxFit.cover,
                                     opacity: 0.3,
                                   ),
                           ),
-                          child: _selectedFile == null
+                          child: _selectedImageBytes == null
                               ? Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -249,7 +260,7 @@ class _BugReportPageState extends State<BugReportPage> {
                                     const Icon(Icons.check_circle, size: 40, color: Colors.green),
                                     const SizedBox(height: 8),
                                     Text(
-                                      'Screenshot selected',
+                                      _selectedImageName ?? 'Screenshot selected',
                                       style: GoogleFonts.pixelifySans(
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,

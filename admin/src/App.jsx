@@ -972,6 +972,7 @@ function SupportTicketsTab({ adminToken, onMutate, onSelectUser, filterStatus = 
         },
         { key: 'type', label: 'Type' },
         { key: 'message', label: 'Message', render: (ticket) => truncate(ticket.message) },
+        { key: 'screenshot', label: 'Screenshot', render: (ticket) => ticket.has_screenshot ? (ticket.screenshot_filename || 'Attached') : '-' },
         { key: 'timestamp', label: 'Date', render: (ticket) => formatDate(ticket.timestamp) },
         { key: 'status', label: 'Status', render: (ticket) => <StatusBadge status={ticket.status} /> },
         {

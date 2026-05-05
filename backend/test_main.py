@@ -34,6 +34,7 @@ def setup_db():
         cursor.execute("DROP TABLE IF EXISTS player_activity_logs")
         cursor.execute("DROP TABLE IF EXISTS reports")
         cursor.execute("DROP TABLE IF EXISTS admin_activity_logs")
+        cursor.execute("DROP TABLE IF EXISTS support_tickets")
         
         # Create users table with all columns from main.py
         cursor.execute("""
@@ -101,6 +102,19 @@ def setup_db():
                 reason TEXT,
                 timestamp TEXT,
                 status TEXT DEFAULT 'Pending'
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE support_tickets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                type TEXT,
+                message TEXT,
+                screenshot_base64 TEXT,
+                screenshot_filename TEXT,
+                status TEXT DEFAULT 'Open',
+                timestamp TEXT
             )
         """)
 
@@ -215,3 +229,36 @@ async def test_ban_user_creates_admin_activity_log():
     assert row[1] == "ban_user"
     assert row[2] == user_id
     assert json.loads(row[3]) == {"reason": "Cheating"}
+
+
+@pytest.mark.asyncio
+async def test_submit_support_ticket_with_screenshot():
+    cursor = _KEEPALIVE_CONN.cursor()
+    cursor.execute(
+        "INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
+        ("reporter", "reporter@gmail.com", "secret")
+    )
+    user_id = cursor.lastrowid
+    _KEEPALIVE_CONN.commit()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        response = await ac.post("/support/tickets", json={
+            "user_id": user_id,
+            "type": "bug",
+            "message": "The board freezes after a win.",
+            "screenshot_base64": "ZmFrZS1pbWFnZS1ieXRlcw==",
+            "screenshot_filename": "freeze.png",
+        })
+
+    assert response.status_code == 200
+
+    row = cursor.execute(
+        "SELECT type, message, screenshot_base64, screenshot_filename, status FROM support_tickets"
+    ).fetchone()
+    assert row is not None
+    assert row[0] == "bug"
+    assert row[1] == "The board freezes after a win."
+    assert row[2] == "ZmFrZS1pbWFnZS1ieXRlcw=="
+    assert row[3] == "freeze.png"
+    assert row[4] == "Open"

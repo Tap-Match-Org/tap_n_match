@@ -541,6 +541,8 @@ def init_db():
             user_id INTEGER,
             type TEXT,
             message TEXT,
+            screenshot_base64 TEXT,
+            screenshot_filename TEXT,
             status TEXT DEFAULT 'Open',
             timestamp TEXT
         )
@@ -613,6 +615,17 @@ def init_db():
         except sqlite3.OperationalError as e:
             if "duplicate column name" not in str(e).lower():
                 print(f"[ERROR] Could not add {col_name} column: {e}")
+
+    support_ticket_columns_to_add = [
+        ("screenshot_base64", "TEXT"),
+        ("screenshot_filename", "TEXT"),
+    ]
+    for col_name, col_type in support_ticket_columns_to_add:
+        try:
+            cursor.execute(f"ALTER TABLE support_tickets ADD COLUMN {col_name} {col_type}")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" not in str(e).lower():
+                print(f"[ERROR] Could not add support_tickets.{col_name} column: {e}")
 
     cursor.execute(
         "UPDATE users SET unlocked_tap_sounds = ? WHERE unlocked_tap_sounds IS NULL OR TRIM(unlocked_tap_sounds) = ''",
@@ -2657,15 +2670,30 @@ class SupportTicketRequest(BaseModel):
     user_id: int
     type: str
     message: str
+    screenshot_base64: str | None = None
+    screenshot_filename: str | None = None
 
 @app.post("/support/tickets")
 async def submit_support_ticket(request: SupportTicketRequest):
     conn = get_db_connection()
     cursor = conn.cursor()
     created_at = current_timestamp()
+    screenshot_base64 = request.screenshot_base64.strip() if request.screenshot_base64 else None
+    screenshot_filename = request.screenshot_filename.strip() if request.screenshot_filename else None
     cursor.execute(
-        "INSERT INTO support_tickets (user_id, type, message, status, timestamp) VALUES (?, ?, ?, 'Open', ?)",
-        (request.user_id, request.type, request.message, created_at)
+        """
+        INSERT INTO support_tickets (
+            user_id,
+            type,
+            message,
+            screenshot_base64,
+            screenshot_filename,
+            status,
+            timestamp
+        )
+        VALUES (?, ?, ?, ?, ?, 'Open', ?)
+        """,
+        (request.user_id, request.type, request.message, screenshot_base64, screenshot_filename, created_at)
     )
     conn.commit()
     ticket_id = cursor.lastrowid
@@ -2685,11 +2713,32 @@ async def get_support_tickets():
     conn = get_db_connection()
     cursor = conn.cursor()
     tickets = cursor.execute(
-        "SELECT id, user_id, type, message, status, timestamp FROM support_tickets ORDER BY timestamp DESC"
+        """
+        SELECT
+            id,
+            user_id,
+            type,
+            message,
+            screenshot_filename,
+            screenshot_base64,
+            status,
+            timestamp
+        FROM support_tickets
+        ORDER BY timestamp DESC
+        """
     ).fetchall()
     conn.close()
     return [
-        {"id": t[0], "user_id": t[1], "type": t[2], "message": t[3], "status": t[4], "timestamp": t[5]}
+        {
+            "id": t[0],
+            "user_id": t[1],
+            "type": t[2],
+            "message": t[3],
+            "screenshot_filename": t[4],
+            "has_screenshot": bool(t[5]),
+            "status": t[6],
+            "timestamp": t[7],
+        }
         for t in tickets
     ]
 
