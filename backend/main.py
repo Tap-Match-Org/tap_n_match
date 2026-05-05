@@ -2735,6 +2735,7 @@ async def get_support_tickets():
             "type": t[2],
             "message": t[3],
             "screenshot_filename": t[4],
+            "screenshot_base64": t[5],
             "has_screenshot": bool(t[5]),
             "status": t[6],
             "timestamp": t[7],

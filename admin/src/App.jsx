@@ -924,6 +924,7 @@ function SupportTicketsTab({ adminToken, onMutate, onSelectUser, filterStatus = 
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [selectedScreenshotTicket, setSelectedScreenshotTicket] = useState(null);
 
     const fetchTickets = async () => {
         setLoading(true);
@@ -961,6 +962,12 @@ function SupportTicketsTab({ adminToken, onMutate, onSelectUser, filterStatus = 
         }
     };
 
+    const openScreenshot = (ticket, e) => {
+        e.stopPropagation();
+        if (!ticket.screenshot_base64) return;
+        setSelectedScreenshotTicket(ticket);
+    };
+
     const columns = [
         { key: 'id', label: 'ID', render: (ticket) => `#${ticket.id}` },
         {
@@ -972,7 +979,19 @@ function SupportTicketsTab({ adminToken, onMutate, onSelectUser, filterStatus = 
         },
         { key: 'type', label: 'Type' },
         { key: 'message', label: 'Message', render: (ticket) => truncate(ticket.message) },
-        { key: 'screenshot', label: 'Screenshot', render: (ticket) => ticket.has_screenshot ? (ticket.screenshot_filename || 'Attached') : '-' },
+        {
+            key: 'screenshot',
+            label: 'Screenshot',
+            render: (ticket) => ticket.has_screenshot ? (
+                <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={(e) => openScreenshot(ticket, e)}
+                >
+                    View Screenshot
+                </button>
+            ) : '-',
+        },
         { key: 'timestamp', label: 'Date', render: (ticket) => formatDate(ticket.timestamp) },
         { key: 'status', label: 'Status', render: (ticket) => <StatusBadge status={ticket.status} /> },
         {
@@ -996,6 +1015,46 @@ function SupportTicketsTab({ adminToken, onMutate, onSelectUser, filterStatus = 
             {error && <div className="alert alert-error">{error}</div>}
             {loading ? <div className="loading">Loading support tickets...</div> : (
                 <DataTable columns={columns} rows={tickets} emptyMessage="No support tickets found." onRowClick={onSelectUser} />
+            )}
+            {selectedScreenshotTicket && (
+                <div className="modal-overlay" onClick={() => setSelectedScreenshotTicket(null)}>
+                    <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>{selectedScreenshotTicket.screenshot_filename || 'Attached Screenshot'}</h3>
+                            <button
+                                type="button"
+                                className="close-button"
+                                onClick={() => setSelectedScreenshotTicket(null)}
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            <img
+                                src={`data:image/*;base64,${selectedScreenshotTicket.screenshot_base64}`}
+                                alt={selectedScreenshotTicket.screenshot_filename || 'Bug report screenshot'}
+                                style={{
+                                    display: 'block',
+                                    width: '100%',
+                                    maxHeight: '70vh',
+                                    objectFit: 'contain',
+                                    borderRadius: '12px',
+                                    border: '1px solid #d9d2c7',
+                                    background: '#f5f1eb',
+                                }}
+                            />
+                        </div>
+                        <div className="modal-footer">
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => setSelectedScreenshotTicket(null)}
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
