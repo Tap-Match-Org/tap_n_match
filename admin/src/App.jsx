@@ -1236,7 +1236,7 @@ function UserDetailPanel({ adminToken, selectedUserId, refreshNonce, onRefreshCo
     const achievements = user?.achievements || [];
 
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60000);
-    const isOnline = user?.last_active_at && new Date(user.last_active_at) >= fiveMinutesAgo;
+    const isOnline = !user?.is_banned && user?.last_active_at && new Date(user.last_active_at) >= fiveMinutesAgo;
 
     return (
         <div className="detail-stack">

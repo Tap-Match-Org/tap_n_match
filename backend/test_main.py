@@ -200,8 +200,8 @@ async def test_login_banned():
 async def test_ban_user_creates_admin_activity_log():
     cursor = _KEEPALIVE_CONN.cursor()
     cursor.execute(
-        "INSERT INTO users (username, email, password, is_banned) VALUES (?, ?, ?, ?)",
-        ("targetuser", "target@gmail.com", "secret", 0)
+        "INSERT INTO users (username, email, password, is_banned, last_active_at) VALUES (?, ?, ?, ?, ?)",
+        ("targetuser", "target@gmail.com", "secret", 0, datetime.now().isoformat(timespec="seconds"))
     )
     user_id = cursor.lastrowid
     _KEEPALIVE_CONN.commit()
@@ -229,6 +229,15 @@ async def test_ban_user_creates_admin_activity_log():
     assert row[1] == "ban_user"
     assert row[2] == user_id
     assert json.loads(row[3]) == {"reason": "Cheating"}
+
+    _KEEPALIVE_CONN.commit()
+    user_row = cursor.execute(
+        "SELECT is_banned, ban_reason, last_active_at FROM users WHERE id = ?",
+        (user_id,),
+    ).fetchone()
+    assert user_row[0] == 1
+    assert user_row[1] == "Cheating"
+    assert user_row[2] is None
 
 
 @pytest.mark.asyncio

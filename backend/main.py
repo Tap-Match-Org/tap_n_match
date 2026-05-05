@@ -2208,7 +2208,7 @@ async def get_admin_stats():
         (f"{today}%",),
     ).fetchone()[0]
     online_users = cursor.execute(
-        "SELECT COUNT(*) FROM users WHERE last_active_at IS NOT NULL AND last_active_at >= ?",
+        "SELECT COUNT(*) FROM users WHERE is_banned = 0 AND last_active_at IS NOT NULL AND last_active_at >= ?",
         (five_minutes_ago,),
     ).fetchone()[0]
 
@@ -2241,7 +2241,7 @@ async def get_admin_users(search: str = ""):
             u.lifetime_points,
             u.created_at,
             u.last_active_at,
-            (u.last_active_at IS NOT NULL AND u.last_active_at >= ?) AS is_online,
+            (u.is_banned = 0 AND u.last_active_at IS NOT NULL AND u.last_active_at >= ?) AS is_online,
             (
                 SELECT pal.created_at
                 FROM player_activity_logs pal
@@ -2516,7 +2516,10 @@ class BanRequest(BaseModel):
 async def ban_user(user_id: int, request: BanRequest, admin_session = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", (request.reason, user_id))
+    cursor.execute(
+        "UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?",
+        (request.reason, user_id),
+    )
     log_player_activity(
         cursor,
         user_id,
@@ -2524,6 +2527,7 @@ async def ban_user(user_id: int, request: BanRequest, admin_session = Depends(ve
         "Admin banned the player.",
         {"reason": request.reason},
     )
+    cursor.execute("UPDATE users SET last_active_at = NULL WHERE id = ?", (user_id,))
     log_admin_activity(cursor, admin_session.get("email"), "ban_user", {"reason": request.reason}, user_id)
     conn.commit()
     conn.close()
