@@ -1578,8 +1578,11 @@ export default function App() {
         setAdminToken(session.token);
         setAdminEmail(session.email);
     };
-
-    const handleLogout = async () => {
+const handleLogout = async () => {
+    if (!window.confirm("Are you sure you want to logout?")) {
+        return;
+    }
+    try {
         const activeToken = localStorage.getItem('adminToken');
         if (activeToken) {
             try {
