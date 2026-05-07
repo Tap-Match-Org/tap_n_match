@@ -1128,7 +1128,7 @@ function AdminLogsModal({ adminToken, onClose }) {
                 <div className="modal-body">
                     {error && <div className="alert alert-error">{error}</div>}
                     {loading ? <div className="loading">Loading logs...</div> : (
-                        <div className="table-container">
+                        <div className="table-scroll-container">
                             <table>
                                 <thead>
                                     <tr>
@@ -1582,22 +1582,21 @@ const handleLogout = async () => {
     if (!window.confirm("Are you sure you want to logout?")) {
         return;
     }
-    try {
-        const activeToken = localStorage.getItem('adminToken');
-        if (activeToken) {
-            try {
-                await axios.post(`${API_BASE_URL}/admin/logout`, {}, {
-                    headers: buildAdminHeaders(activeToken),
-                });
-            } catch (err) {
-                // Local cleanup is enough if the session is already invalid.
-            }
+    const activeToken = localStorage.getItem('adminToken');
+    if (activeToken) {
+        try {
+            await axios.post(`${API_BASE_URL}/admin/logout`, {}, {
+                headers: buildAdminHeaders(activeToken),
+            });
+        } catch (err) {
+            // Local cleanup is enough if the session is already invalid.
         }
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminEmail');
-        setAdminToken(null);
-        setAdminEmail('');
-    };
+    }
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminEmail');
+    setAdminToken(null);
+    setAdminEmail('');
+};
 
     return (
         <div className="container">
