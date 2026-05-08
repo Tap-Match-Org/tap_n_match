@@ -109,13 +109,8 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           cardPosition: TutorialCardPosition.bottomLeft,
           showArrow: false,
         ),
-        TutorialStep(
-          targetKey: _doneButtonKey,
-          title: 'Finish The Level',
-          description:
-              'When your grid matches the target, tap Done. Clear the pattern before the timer reaches zero to finish the level.',
-          cardPosition: TutorialCardPosition.bottomRight,
-        ),
+        // Note: The explicit "Done" button was removed for faster gameplay.
+        // We no longer target the removed button in the tutorial steps.
         TutorialStep(
           targetKey: _scoreBarKey,
           title: 'How Scoring Works',
@@ -140,43 +135,50 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     try {
       final response = await _client.get(ApiConfig.getUri('/users/$userId'));
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-          _hasPendingPlayTutorial = hasPendingTutorial(
-            data,
-            TutorialIds.play,
-          );
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+        // Determine whether the play tutorial is pending from server data.
+        _hasPendingPlayTutorial = hasPendingTutorial(data, TutorialIds.play);
+
         if (mounted) {
           setState(() {
             selectedTheme = data['selected_theme'] ?? "#A9A9A9";
             currentScore = 0;
-            highestScore = data['highest_score'] ?? 0;
-            achievementCount = data['achievement_count'] ?? 0;
+            highestScore = data['highest_score'] is int
+                ? data['highest_score'] as int
+                : (data['highest_score'] ?? 0) as int;
+            achievementCount = data['achievement_count'] is int
+                ? data['achievement_count'] as int
+                : (data['achievement_count'] ?? 0) as int;
           });
         }
 
-          // If the backend did not include pending tutorial flags (new account),
-      // On web builds network/CORS issues commonly prevent the backend
-      // request from succeeding. For a smooth first-time UX, assume the
-      // play tutorial should be shown when we can't reach the server.
-      debugPrint("Error loading theme: $e");
-      _hasPendingPlayTutorial = true;
-          // and no achievements). This is a safe heuristic to ensure first-time
-          // users see the tutorial even if the server omits the flag.
-          if (!_hasPendingPlayTutorial) {
-            final int hs = data['highest_score'] is int ? data['highest_score'] as int : (data['highest_score'] ?? 0) as int;
-            final int ac = data['achievement_count'] is int ? data['achievement_count'] as int : (data['achievement_count'] ?? 0) as int;
-            if (hs == 0 && ac == 0) {
-              _hasPendingPlayTutorial = true;
-            }
+        // If the backend omitted the pending-tutorial flag (older accounts),
+        // use a safe heuristic: if the user has never scored or earned
+        // achievements, assume they need the play tutorial.
+        if (!_hasPendingPlayTutorial) {
+          final int hs = data['highest_score'] is int
+              ? data['highest_score'] as int
+              : (data['highest_score'] ?? 0) as int;
+          final int ac = data['achievement_count'] is int
+              ? data['achievement_count'] as int
+              : (data['achievement_count'] ?? 0) as int;
+          if (hs == 0 && ac == 0) {
+            _hasPendingPlayTutorial = true;
           }
+        }
 
         // Sync SoundManager settings
-        await soundManager.syncFromMap(Map<String, dynamic>.from(data as Map));
+        await soundManager.syncFromMap(Map<String, dynamic>.from(data));
+      } else {
+        debugPrint('Failed to load user data: ${response.statusCode}');
+        // If we couldn't load user data, default to showing the play
+        // tutorial so new users still see onboarding.
+        _hasPendingPlayTutorial = true;
       }
     } catch (e) {
-      debugPrint("Error loading theme: $e");
-      // If we couldn't load user data (network/CORS issues on web, etc.),
-      // default to showing the play tutorial so new users still see onboarding.
+      debugPrint("Error loading user data: $e");
+      // Default to showing the play tutorial on error (web/CORS, offline, etc.).
       _hasPendingPlayTutorial = true;
     }
   }
@@ -215,7 +217,6 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     final targets = [
       _targetGridKey,
       _userGridKey,
-      _doneButtonKey,
       _scoreBarKey,
     ];
 
