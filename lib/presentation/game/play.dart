@@ -662,10 +662,10 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
         ApiConfig.getUri('/complete-level/$userId'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
-      );
+      ).timeout(const Duration(seconds: 2));
 
       if (response.statusCode != 200) {
-        throw Exception('Unexpected status code ${response.statusCode}');
+        throw Exception('Server returned ${response.statusCode}');
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -680,31 +680,16 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
         });
       }
 
-      // --- FIRESTORE MIRROR (TEACHER REQUIREMENT) ---
-      try {
-        final username = await PersistenceService.getUsername() ?? "Unknown";
-        await FirebaseFirestore.instance.collection('leaderboards').doc('user_$userId').set({
-          'username': username,
-          'total_score': currentScore,
-          'highest_level': currentLevel,
-          'last_updated': FieldValue.serverTimestamp(),
-          'platform': 'hybrid_sqlite_firestore',
-        }, SetOptions(merge: true));
-        debugPrint("Firestore Mirror Sync Success");
-      } catch (fe) {
-        debugPrint("Firestore Mirror Sync Failed: $fe");
-      }
-      // ----------------------------------------------
-
+      // Firestore mirroring should never delay level progression.
+      unawaited(_syncLeaderboardMirror());
     } catch (e) {
-      debugPrint("Error recording score: $e");
+      debugPrint("Error recording level completion: $e");
       if (mounted) {
-        await _showTopSnackBar("Level cleared, but score sync failed.");
+        await _showTopSnackBar("Level cleared locally, but score sync failed.");
       }
     } finally {
-      _isSubmittingLevel = false;
       if (mounted) {
-        setState(() {});
+        setState(() => _isSubmittingLevel = false);
       }
     }
 
@@ -733,6 +718,21 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
         ],
       ),
     );
+  }
+
+  Future<void> _syncLeaderboardMirror() async {
+    try {
+      final username = await PersistenceService.getUsername() ?? "Unknown";
+      await FirebaseFirestore.instance.collection('leaderboards').doc('user_$userId').set({
+        'username': username,
+        'total_score': currentScore,
+        'highest_level': currentLevel,
+        'last_updated': FieldValue.serverTimestamp(),
+        'platform': 'hybrid_sqlite_firestore',
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 1));
+    } catch (fe) {
+      debugPrint("Firestore Sync Failed: $fe");
+    }
   }
 
   Future<void> _showTopSnackBar(String message) async {
