@@ -155,7 +155,11 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
         }
 
           // If the backend did not include pending tutorial flags (new account),
-          // show the play tutorial for users who appear brand-new (no score
+      // On web builds network/CORS issues commonly prevent the backend
+      // request from succeeding. For a smooth first-time UX, assume the
+      // play tutorial should be shown when we can't reach the server.
+      debugPrint("Error loading theme: $e");
+      _hasPendingPlayTutorial = true;
           // and no achievements). This is a safe heuristic to ensure first-time
           // users see the tutorial even if the server omits the flag.
           if (!_hasPendingPlayTutorial) {
@@ -171,6 +175,9 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
       }
     } catch (e) {
       debugPrint("Error loading theme: $e");
+      // If we couldn't load user data (network/CORS issues on web, etc.),
+      // default to showing the play tutorial so new users still see onboarding.
+      _hasPendingPlayTutorial = true;
     }
   }
 
