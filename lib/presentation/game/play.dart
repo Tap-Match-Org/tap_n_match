@@ -572,7 +572,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     } else if (level <= 50) {
       return _DifficultyConfig(rows: 3, cols: 3, colors: 5, time: 15, label: "Normal");
     } else if (level <= 100) {
-      return _DifficultyConfig(rows: 5, cols: 5, colors: 5, time: 20, label: "Hard");
+      return _DifficultyConfig(rows: 5, cols: 5, colors: 5, time: 32, label: "Hard");
     } else {
       return _DifficultyConfig(rows: 5, cols: 5, colors: 8, time: 32, label: "Extreme");
     }

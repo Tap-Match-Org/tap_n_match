@@ -42,7 +42,7 @@ GameDifficultyConfig getDifficultyConfig(int level) {
       rows: 5,
       cols: 5,
       colors: 5,
-      time: 20,
+      time: 32,
       label: 'Hard',
     );
   }
