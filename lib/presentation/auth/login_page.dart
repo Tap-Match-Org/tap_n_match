@@ -123,16 +123,22 @@ class _LoginPageState extends State<LoginPage> {
       }
     }
 
-    if (response.status == AuthStatus.success || response.status == AuthStatus.banned) {
-      await PersistenceService.saveUserId(response.userId!);
-      await PersistenceService.saveUsername(response.username!);
-      
+    if (response.status == AuthStatus.success) {
+      // Only save and navigate on a successful login where userId/username are present
+      if (response.userId != null && response.username != null) {
+        await PersistenceService.saveUserId(response.userId!);
+        await PersistenceService.saveUsername(response.username!);
+      }
+
       if (mounted) {
         Navigator.of(context).pushReplacementNamed(
           '/menu',
           arguments: {'user_id': response.userId},
         );
       }
+    } else if (response.status == AuthStatus.banned) {
+      // Show a clear message for banned accounts and do not navigate or save null values
+      _showMsg(response.errorMessage ?? 'Account banned', isError: true);
     } else {
       _showMsg(response.errorMessage ?? 'An error occurred', isError: true);
     }

@@ -17,7 +17,7 @@ void main() {
       final hard = getDifficultyConfig(51);
       expect(hard.label, 'Hard');
       expect(hard.rows, 5);
-      expect(hard.time, 20);
+      expect(hard.time, 32);
 
       final extreme = getDifficultyConfig(101);
       expect(extreme.label, 'Extreme');
