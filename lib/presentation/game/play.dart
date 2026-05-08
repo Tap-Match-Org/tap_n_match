@@ -617,6 +617,10 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
       _tapCountThisLevel++;
       userPattern[index] = (userPattern[index] + 1) % config.colors;
     });
+
+    if (_patternsMatch()) {
+      _checkWin(triggeredByDone: false);
+    }
   }
 
   void _checkWin({required bool triggeredByDone}) {
@@ -641,6 +645,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     
     // Celebratory effect
     _confettiController.play();
+    soundManager.playLevelCompleteSound();
     
     if (mounted) {
       setState(() {});
@@ -689,35 +694,14 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
       }
     } finally {
       if (mounted) {
-        setState(() => _isSubmittingLevel = false);
+        // Auto-advance level
+        setState(() {
+          currentLevel++;
+          _isSubmittingLevel = false;
+        });
+        _startLevel();
       }
     }
-
-    if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFFB2B9D1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.black, width: 3)),
-        title: Text("LEVEL COMPLETE!", textAlign: TextAlign.center, style: GoogleFonts.pixelifySans(fontWeight: FontWeight.bold)),
-        content: Text(
-          "You've cleared Level $currentLevel!\nScore: $currentScore\nAchievements: $achievementCount",
-          textAlign: TextAlign.center,
-          style: GoogleFonts.pixelifySans(),
-        ),
-        actions: [
-          Center(
-            child: _buildButton("Next Level", () {
-              Navigator.pop(ctx);
-              setState(() => currentLevel++);
-              _startLevel();
-            }),
-          )
-        ],
-      ),
-    );
   }
 
   Future<void> _syncLeaderboardMirror() async {
@@ -729,7 +713,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
         'highest_level': currentLevel,
         'last_updated': FieldValue.serverTimestamp(),
         'platform': 'hybrid_sqlite_firestore',
-      }, SetOptions(merge: true)).timeout(const Duration(seconds: 1));
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 5));
     } catch (fe) {
       debugPrint("Firestore Sync Failed: $fe");
     }
@@ -1254,15 +1238,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
         ),
         const Icon(Icons.timer_outlined, color: Colors.black, size: 48),
         const SizedBox(height: 30),
-        Container(
-          key: _doneButtonKey,
-          child: _buildButton(
-            "Done",
-            (isGameOver || isPaused || _isSubmittingLevel)
-                ? () {}
-                : () => _checkWin(triggeredByDone: true),
-          ),
-        ),
+        // 'Done' button removed for faster-paced gameplay
       ],
     );
   }

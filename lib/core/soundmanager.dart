@@ -2,6 +2,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:tap_n_match/core/api_config.dart';
 
 class SoundManager {
@@ -14,6 +15,7 @@ class SoundManager {
   final AudioPlayer _tapPlayer = AudioPlayer();
   final AudioPlayer _bgMusicPlayer = AudioPlayer();
   final AudioPlayer _oneOffPlayer = AudioPlayer();
+  StreamSubscription<void>? _gameOverSequenceSubscription;
   bool _isBgMusicPlaying = false;
   
   // Settings
@@ -231,16 +233,30 @@ class SoundManager {
       await stopBgMusic();
       await _oneOffPlayer.stop();
       await _oneOffPlayer.setVolume(_tapVolume);
-      await _oneOffPlayer.play(AssetSource('audio/game_over_sound/harry_potter_game_over.mp3'));
+      await _oneOffPlayer.setReleaseMode(ReleaseMode.stop);
+      await _gameOverSequenceSubscription?.cancel();
+      
+      // Part 1
+      await _oneOffPlayer.play(AssetSource('audio/game_over_sound/game_over_sound1.mp3'));
+      
+      // Wait for completion then Part 2
+      _gameOverSequenceSubscription = _oneOffPlayer.onPlayerComplete.listen((event) async {
+        await _gameOverSequenceSubscription?.cancel();
+        _gameOverSequenceSubscription = null;
+        await _oneOffPlayer.play(AssetSource('audio/game_over_sound/game_over_sound2.mp3'));
+      });
     } catch (e) {
-      debugPrint('Error playing game over sound: $e');
+      debugPrint('Error playing game over sequence: $e');
     }
   }
 
   Future<void> playCountdownSound() async {
     if (!_tapSoundEnabled) return;
     try {
+      await _gameOverSequenceSubscription?.cancel();
+      _gameOverSequenceSubscription = null;
       await _oneOffPlayer.stop();
+      await _oneOffPlayer.setReleaseMode(ReleaseMode.stop);
       await _oneOffPlayer.setVolume(_tapVolume);
       await _oneOffPlayer.play(AssetSource('countdown_sound/3, 2, 1 countdown.mp3'));
     } catch (e) {
@@ -248,8 +264,26 @@ class SoundManager {
     }
   }
 
+  Future<void> playLevelCompleteSound() async {
+    if (!_tapSoundEnabled) return;
+    try {
+      await _gameOverSequenceSubscription?.cancel();
+      _gameOverSequenceSubscription = null;
+      await _oneOffPlayer.stop();
+      await _oneOffPlayer.setReleaseMode(ReleaseMode.stop);
+      await _oneOffPlayer.setVolume(_tapVolume);
+      // Corrected asset path: Remove the leading 'audio/' as AssetSource prepends it or it's handled differently in some contexts. 
+      // Actually, checking standard audioplayers usage: AssetSource expects the path relative to the assets folder.
+      await _oneOffPlayer.play(AssetSource('audio/level_complete_sound/level_complete_sound.mp3'));
+    } catch (e) {
+      debugPrint('Error playing level complete sound: $e');
+    }
+  }
+
   Future<void> stopOneOffSound() async {
     try {
+      await _gameOverSequenceSubscription?.cancel();
+      _gameOverSequenceSubscription = null;
       await _oneOffPlayer.stop();
     } catch (e) {
       debugPrint('Error stopping one-off sound: $e');
@@ -257,6 +291,7 @@ class SoundManager {
   }
 
   void dispose() {
+    _gameOverSequenceSubscription?.cancel();
     _tapPlayer.dispose();
     _bgMusicPlayer.dispose();
     _oneOffPlayer.dispose();
