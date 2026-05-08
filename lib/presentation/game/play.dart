@@ -1117,13 +1117,26 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
 }
 
   Widget _buildGameContent(_DifficultyConfig config) {
+    final isHardOrAbove = config.label == "Hard" || config.label == "Extreme";
+
     return Stack(
       children: [
-        Positioned(
-          left: 20,
-          top: 20,
-          child: _buildScoreBar(),
-        ),
+        if (isHardOrAbove)
+          Positioned(
+            top: 14,
+            left: 0,
+            right: 0,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: _buildScoreBar(compact: true),
+            ),
+          ),
+        if (!isHardOrAbove)
+          Positioned(
+            left: 20,
+            top: 20,
+            child: _buildScoreBar(),
+          ),
         Positioned(
           right: 20,
           top: 20,
@@ -1153,29 +1166,32 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           ),
         ),
         Center(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildGrid(
-                  targetPattern,
-                  false,
-                  "Target",
-                  config,
-                  tutorialKey: _targetGridKey,
-                ),
-                const SizedBox(width: 20),
-                _buildCenterUI(),
-                const SizedBox(width: 20),
-                _buildGrid(
-                  userPattern,
-                  !isGameOver && !isPaused && !_isSubmittingLevel,
-                  "Your Grid",
-                  config,
-                  tutorialKey: _userGridKey,
-                ),
-              ],
+          child: Padding(
+            padding: EdgeInsets.only(top: isHardOrAbove ? 56 : 0),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildGrid(
+                    targetPattern,
+                    false,
+                    "Target",
+                    config,
+                    tutorialKey: _targetGridKey,
+                  ),
+                  const SizedBox(width: 20),
+                  _buildCenterUI(),
+                  const SizedBox(width: 20),
+                  _buildGrid(
+                    userPattern,
+                    !isGameOver && !isPaused && !_isSubmittingLevel,
+                    "Your Grid",
+                    config,
+                    tutorialKey: _userGridKey,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1243,13 +1259,19 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildScoreBar() {
+  Widget _buildScoreBar({bool compact = false}) {
+    final horizontalPadding = compact ? 10.0 : 14.0;
+    final verticalPadding = compact ? 8.0 : 10.0;
+    final scoreFontSize = compact ? 22.0 : 28.0;
+    final labelFontSize = compact ? 12.0 : 14.0;
+    final highScoreFontSize = compact ? 9.0 : 10.0;
+
     return Container(
       key: _scoreBarKey,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.92),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 10 : 12),
         border: Border.all(color: Colors.black, width: 2),
         boxShadow: const [
           BoxShadow(
@@ -1265,7 +1287,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           Text(
             "Score",
             style: GoogleFonts.pixelifySans(
-              fontSize: 14,
+              fontSize: labelFontSize,
               fontWeight: FontWeight.bold,
               color: Colors.black54,
             ),
@@ -1273,7 +1295,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           Text(
             currentScore.toString(),
             style: GoogleFonts.pixelifySans(
-              fontSize: 28,
+              fontSize: scoreFontSize,
               fontWeight: FontWeight.bold,
               color: Colors.black,
             ),
@@ -1281,7 +1303,7 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
           Text(
             "High Score: $highestScore",
             style: GoogleFonts.pixelifySans(
-              fontSize: 10,
+              fontSize: highScoreFontSize,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
