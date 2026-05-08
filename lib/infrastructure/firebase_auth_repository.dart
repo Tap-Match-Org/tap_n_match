@@ -46,11 +46,11 @@ class FirebaseAuthRepository {
           username: username,
         );
       }
-      return AuthResponse.error("Registration failed");
+      return AuthResponse.error("Firebase: User creation returned null");
     } on FirebaseAuthException catch (e) {
-      return AuthResponse.error(e.message ?? "An error occurred during registration");
+      return AuthResponse.error("Firebase Error (${e.code}): ${e.message}");
     } catch (e) {
-      return AuthResponse.error("An unexpected error occurred");
+      return AuthResponse.error("Firebase Unexpected Error: $e");
     }
   }
 

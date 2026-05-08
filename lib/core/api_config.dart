@@ -2,12 +2,12 @@ import 'package:flutter/foundation.dart';
 
 class ApiConfig {
   static String get baseUrl {
-    if (kIsWeb) return 'http://localhost:8000';
+    if (kIsWeb) return 'http://localhost:8001';
     
     // 192.168.1.2 is your PC's local IP address.
     // This allows your physical mobile device to connect to the backend
     // as long as both are on the same Wi-Fi network.
-    return 'http://192.168.1.2:8000';
+    return 'http://192.168.1.2:8001';
   }
 
   static Uri getUri(String path) {

@@ -114,10 +114,10 @@ class AuthRepository {
           username: username,
         );
       } else {
-        return AuthResponse.error(data['detail'] ?? "Error creating account");
+        return AuthResponse.error(data['detail'] ?? "Backend Error: ${response.statusCode}");
       }
     } catch (e) {
-      return AuthResponse.error("Server Error");
+      return AuthResponse.error("Server Connection Error: Check if FastAPI is running and your IP in api_config.dart is correct. ($e)");
     }
   }
 }

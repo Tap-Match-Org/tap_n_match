@@ -125,7 +125,7 @@ class _RegisterPageState extends State<RegisterPage> {
         _showMsg("Account Verified! Going to Login...", isError: false);
         if (mounted) Navigator.of(context).pop();
       } else {
-        _showMsg(response.errorMessage ?? "Error linking account to game database", isError: true);
+        _showMsg(response.errorMessage ?? "Server Error: Registration Failed", isError: true);
       }
     } catch (e) {
       _showMsg("Registration error: $e", isError: true);

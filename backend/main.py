@@ -509,11 +509,16 @@ def init_db():
         )
         """)
 
-    # --- Migration: Add last_active_at if it doesn't exist ---
+    # --- Migration: Add missing columns if they don't exist ---
     cursor.execute("PRAGMA table_info(users)")
     columns = [col[1] for col in cursor.fetchall()]
+    
     if "last_active_at" not in columns:
         cursor.execute("ALTER TABLE users ADD COLUMN last_active_at TEXT")
+        
+    if "firebase_uid" not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN firebase_uid TEXT")
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
