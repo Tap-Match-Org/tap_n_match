@@ -463,8 +463,7 @@ class _LoginPageState extends State<LoginPage> {
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SizedBox(
-                    width: 100,
+                  Flexible(
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Colors.black, width: 2),
@@ -479,8 +478,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  SizedBox(
-                    width: 140, 
+                  Flexible(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
@@ -491,8 +489,7 @@ class _LoginPageState extends State<LoginPage> {
                         soundManager.playTap();
                         _handleLogin();
                       },
-                      child: Text('LOGIN', 
-                        style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
+                      child: Text('LOGIN', style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                 ],
@@ -520,8 +517,7 @@ class _LoginPageState extends State<LoginPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              SizedBox(
-                width: 100,
+              Flexible(
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Colors.black, width: 2),
@@ -536,8 +532,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(width: 8),
-              SizedBox(
-                width: 140,
+              Flexible(
                 child: _isLoading 
                   ? const Center(child: CircularProgressIndicator(color: Colors.black))
                   : ElevatedButton(
