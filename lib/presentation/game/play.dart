@@ -141,10 +141,10 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
       final response = await _client.get(ApiConfig.getUri('/users/$userId'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        _hasPendingPlayTutorial = hasPendingTutorial(
-          data,
-          TutorialIds.play,
-        );
+          _hasPendingPlayTutorial = hasPendingTutorial(
+            data,
+            TutorialIds.play,
+          );
         if (mounted) {
           setState(() {
             selectedTheme = data['selected_theme'] ?? "#A9A9A9";
@@ -153,6 +153,18 @@ class _GamePageState extends State<GamePage> with TickerProviderStateMixin {
             achievementCount = data['achievement_count'] ?? 0;
           });
         }
+
+          // If the backend did not include pending tutorial flags (new account),
+          // show the play tutorial for users who appear brand-new (no score
+          // and no achievements). This is a safe heuristic to ensure first-time
+          // users see the tutorial even if the server omits the flag.
+          if (!_hasPendingPlayTutorial) {
+            final int hs = data['highest_score'] is int ? data['highest_score'] as int : (data['highest_score'] ?? 0) as int;
+            final int ac = data['achievement_count'] is int ? data['achievement_count'] as int : (data['achievement_count'] ?? 0) as int;
+            if (hs == 0 && ac == 0) {
+              _hasPendingPlayTutorial = true;
+            }
+          }
 
         // Sync SoundManager settings
         await soundManager.syncFromMap(Map<String, dynamic>.from(data as Map));
